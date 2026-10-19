@@ -69,3 +69,8 @@ Planowane wymagania: Docker, Node.js, Python.
 
 - zadania prowadzimy w GitHub Projects (tablica Kanban),
 - każda zmiana trafia do gałęzi `main` przez Pull Request z przeglądem kodu.
+
+## Architektura 3-tier
+
+<img width="909" height="1033" alt="image" src="https://github.com/user-attachments/assets/0c23df7d-5dce-4907-9fde-ff9c1a3d367d" />
+
