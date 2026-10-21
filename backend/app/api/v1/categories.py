@@ -1,49 +1,58 @@
-from fastapi import APIRouter, Response, status
+from fastapi import APIRouter, Response
 
-from app.api.deps import AdminUser, ResourceId
+from app.api.deps import AdminUser, DbSession, ResourceId
 from app.api.responses import error_responses
 from app.schemas.category import CategoryCreate, CategoryRead, CategoryUpdate
-from app.services.contract_examples import example_category
+from app.services import catalog
 
 router = APIRouter(prefix="/categories", tags=["categories"])
 
 
-@router.get("", response_model=list[CategoryRead], summary="List categories")
-async def list_categories() -> list[CategoryRead]:
-    return [example_category()]
+@router.get("", response_model=list[CategoryRead])
+async def list_categories(db: DbSession) -> list[CategoryRead]:
+    return await catalog.list_categories(db)
 
 
 @router.get(
-    "/{category_id}", response_model=CategoryRead, responses=error_responses(404),
-    summary="Read a category",
+    "/{category_id}", response_model=CategoryRead, responses=error_responses(404)
 )
-async def get_category(category_id: ResourceId) -> CategoryRead:
-    return example_category(category_id)
+async def get_category(category_id: ResourceId, db: DbSession) -> CategoryRead:
+    return CategoryRead.model_validate(await catalog.category_or_404(db, category_id))
 
 
 @router.post(
-    "", response_model=CategoryRead, status_code=status.HTTP_201_CREATED,
-    responses=error_responses(401, 403, 409), tags=["admin"], summary="Create a category",
+    "",
+    response_model=CategoryRead,
+    status_code=201,
+    tags=["admin"],
+    responses=error_responses(401, 403, 409),
 )
-async def create_category(body: CategoryCreate, admin: AdminUser) -> CategoryRead:
-    return CategoryRead(id=2, **body.model_dump())
+async def create_category(
+    body: CategoryCreate, admin: AdminUser, db: DbSession
+) -> CategoryRead:
+    return await catalog.save_category(db, body)
 
 
 @router.patch(
-    "/{category_id}", response_model=CategoryRead,
-    responses=error_responses(401, 403, 404, 409), tags=["admin"],
-    summary="Update a category",
+    "/{category_id}",
+    response_model=CategoryRead,
+    tags=["admin"],
+    responses=error_responses(401, 403, 404, 409),
 )
 async def update_category(
-    category_id: ResourceId, body: CategoryUpdate, admin: AdminUser,
+    category_id: ResourceId, body: CategoryUpdate, admin: AdminUser, db: DbSession
 ) -> CategoryRead:
-    return example_category(category_id)
+    return await catalog.save_category(db, body, category_id)
 
 
 @router.delete(
-    "/{category_id}", status_code=status.HTTP_204_NO_CONTENT,
-    responses=error_responses(401, 403, 404, 409), tags=["admin"],
-    summary="Delete a category",
+    "/{category_id}",
+    status_code=204,
+    tags=["admin"],
+    responses=error_responses(401, 403, 404, 409),
 )
-async def delete_category(category_id: ResourceId, admin: AdminUser) -> Response:
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+async def delete_category(
+    category_id: ResourceId, admin: AdminUser, db: DbSession
+) -> Response:
+    await catalog.delete_category(db, category_id)
+    return Response(status_code=204)

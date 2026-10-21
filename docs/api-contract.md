@@ -14,17 +14,18 @@ Modele Pydantic i deklaracje routerów są źródłem schematu OpenAPI. Swagger
 pokazuje pola request/response, ograniczenia walidacji, kody odpowiedzi oraz
 wymagane uprawnienia. JSON używa nazw pól w `snake_case`.
 
-Endpointy zwracają niezależne dane przykładowe. Operacje zapisu nie utrwalają
-zmian: rejestracja nie tworzy konta, a utworzenie produktu, zmiana koszyka czy
-złożenie zamówienia nie wpływają na kolejne żądania. PATCH produktu i kategorii
-zwraca stały przykład. Paginacja przykładowych list działa, natomiast wyszukiwanie,
-filtrowanie, sortowanie i reguły biznesowe są opisane jako kontrakt docelowy.
-Odpowiedzi błędów domenowych w Swaggerze także opisują kontrakt docelowy.
-Przykłady wykonują walidację requestów oraz sprawdzają przykładowe tokeny i role.
+Domyślny tryb `API_MODE=live` wykonuje operacje na PostgreSQL. Zmiany katalogu,
+koszyka, profilu i zamówień są trwałe. Szczegóły uruchomienia, transakcji,
+JWT i lokalnej symulacji płatności: [backend-runtime.md](backend-runtime.md).
+
+Jawny `API_MODE=contract` w środowisku lokalnym/testowym zachowuje przykładowe
+odpowiedzi BE-2 dla testów interfejsu. W tym trybie zapisy nie są utrwalane,
+a filtry i reguły biznesowe nie są wykonywane.
 
 ## Uwierzytelnianie i role
 
-`POST /auth/login` przyjmuje JSON `LoginRequest`, a odpowiedź `Token` ma postać:
+`POST /auth/login` przyjmuje JSON `LoginRequest`. W trybie live zwraca JWT access
+i refresh oraz `expires_in`. Poniższy przykład dotyczy trybu kontraktowego:
 
 ```json
 {
@@ -41,7 +42,7 @@ użyj przycisku **Authorize** i wpisz sam token:
 | `example-user-token` | użytkownik |
 | `example-admin-token` | administrator |
 
-Logowanie w tym etapie zwraca token użytkownika i nie sprawdza hasła. Token
+Tryb kontraktowy zwraca token użytkownika i nie sprawdza hasła. Token
 administratora jest dostępny do testowania kontraktu przez Authorize. Są to
 przykładowe dane dostępu, bez implementacji JWT ani przechowywania kont.
 Brak lub niepoprawny token daje `401` z nagłówkiem `WWW-Authenticate: Bearer`;
@@ -140,9 +141,9 @@ wierszy. Pozycja zawiera `id`, `product_id`, `quantity`, `line_total` i zagnież
 `OrderCreate` zawiera wyłącznie dane wysyłki: `shipping_full_name`,
 `shipping_address_line1`, opcjonalne `shipping_address_line2`, `shipping_city`,
 `shipping_postal_code`, `shipping_country`, opcjonalne `shipping_notes`.
-Produkty i kwoty docelowo pochodzą z koszyka. Opcjonalny nagłówek
-`Idempotency-Key` ma format UUID; przykłady nie przechowują kluczy ani nie
-realizują idempotencji.
+Produkty i kwoty pochodzą z koszyka. Opcjonalny nagłówek `Idempotency-Key`
+ma format UUID; tryb live zapisuje klucze i obsługuje ponowienia. Przykłady
+trybu kontraktowego nie przechowują kluczy.
 
 `OrderRead` zawiera dane wysyłki, `id`, `status`, `total_amount`, `created_at`
 oraz `items`. Każda pozycja ma `id`, `product_id`, `quantity`, `unit_price`
@@ -179,3 +180,15 @@ tagiem `admin` w Swaggerze. Nie wymagają osobnego prefiksu `/admin`.
 - [ ] Paginacja listy produktów oraz odczyt `X-Total-Count` są zaakceptowane.
 - [ ] Obsługa `401`, `403`, `404`, `409` i `422` jest uzgodniona.
 - [ ] Frontend potwierdził akceptację kontraktu w review zadania #13.
+
+## Dodatkowe operacje trybu live
+
+- `POST /auth/refresh` — request `RefreshRequest`, response `SessionTokens`;
+  błędy `401`, `422`, `429`. Logowanie live również zwraca `SessionTokens`.
+- `POST /payments/mock/sessions` — `MockSessionRequest`, `201 PaymentRead`.
+- `POST /payments/mock/{payment_id}/complete` — `MockCompletionRequest`, `200 PaymentRead`.
+- `GET /payments/{payment_id}/status` — `200 PaymentRead`.
+
+Symulacja wymaga `PAYMENTS_MOCK=true` i środowiska lokalnego/testowego.
+Każda płatność jest dostępna wyłącznie właścicielowi zamówienia. Nie ma integracji
+z zewnętrzną bramką ani webhooka. Pełne reguły są w dokumentacji runtime.
