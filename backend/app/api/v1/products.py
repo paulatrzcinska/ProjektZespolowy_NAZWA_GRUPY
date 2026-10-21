@@ -1,81 +1,113 @@
 from decimal import Decimal
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query, Response, status
+from fastapi import APIRouter, HTTPException, Query, Response
 
-from app.api.deps import AdminUser, OptionalUser, ResourceId
+from app.api.deps import AdminUser, DbSession, OptionalUser, ResourceId
 from app.api.responses import error_responses
-from app.schemas.product import ProductCreate, ProductListRead, ProductRead, ProductSort, ProductUpdate
-from app.services.contract_examples import example_product, example_product_summary
+from app.schemas.product import (
+    ProductCreate,
+    ProductListRead,
+    ProductRead,
+    ProductSort,
+    ProductUpdate,
+)
+from app.services import catalog
 
 router = APIRouter(prefix="/products", tags=["products"])
 
 
 @router.get(
-    "", response_model=list[ProductListRead], summary="List products",
-    description=(
-        "Paginated product list. X-Total-Count reports the count before pagination. "
-        "The preview returns a fixed example and does not apply filters or sorting. "
-        "include_inactive requires an admin token."
-    ),
+    "",
+    response_model=list[ProductListRead],
     responses={
         **error_responses(401, 403),
-        200: {"headers": {"X-Total-Count": {
-            "description": "Total matching products before pagination.",
-            "schema": {"type": "integer", "minimum": 0},
-        }}},
+        200: {
+            "headers": {
+                "X-Total-Count": {
+                    "description": "Count before pagination",
+                    "schema": {"type": "integer"},
+                }
+            }
+        },
     },
-    openapi_extra={"security": [{}, {"BearerAuth": []}]},
 )
 async def list_products(
     response: Response,
+    db: DbSession,
     current_user: OptionalUser,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
-    category_id: int | None = Query(default=None, ge=1),
+    category_id: int | None = Query(None, ge=1),
     include_inactive: bool = False,
-    q: str | None = Query(default=None, max_length=200),
+    q: str | None = Query(None, max_length=200),
     sort: ProductSort = "newest",
-    min_price: Decimal | None = Query(default=None, ge=0),
-    max_price: Decimal | None = Query(default=None, ge=0),
+    min_price: Annotated[Decimal | None, Query(ge=0)] = None,
+    max_price: Annotated[Decimal | None, Query(ge=0)] = None,
 ) -> list[ProductListRead]:
-    if include_inactive and (current_user is None or not current_user.is_admin):
-        raise HTTPException(403, "Admin only")
-    response.headers["X-Total-Count"] = "1"
-    return [example_product_summary()][skip:skip + limit]
+    items, total = await catalog.list_products(
+        db,
+        current_user,
+        skip=skip,
+        limit=limit,
+        category_id=category_id,
+        include_inactive=include_inactive,
+        q=q,
+        sort=sort,
+        min_price=min_price,
+        max_price=max_price,
+    )
+    response.headers["X-Total-Count"] = str(total)
+    if include_inactive:
+        response.headers["Cache-Control"] = "no-store"
+    return items
 
 
 @router.get(
-    "/{product_id}", response_model=ProductRead, responses=error_responses(404),
-    summary="Read a product",
+    "/{product_id}", response_model=ProductRead, responses=error_responses(401, 404)
 )
-async def get_product(product_id: ResourceId) -> ProductRead:
-    return example_product(product_id)
+async def get_product(
+    product_id: ResourceId, db: DbSession, current_user: OptionalUser
+) -> ProductRead:
+    item = await catalog.product_or_404(db, product_id)
+    if not item.is_active and (current_user is None or not current_user.is_admin):
+        raise HTTPException(404, "Product not found")
+    return ProductRead.model_validate(item)
 
 
 @router.post(
-    "", response_model=ProductRead, status_code=status.HTTP_201_CREATED,
-    responses=error_responses(401, 403, 409), tags=["admin"], summary="Create a product",
+    "",
+    response_model=ProductRead,
+    status_code=201,
+    tags=["admin"],
+    responses=error_responses(401, 403, 404, 409),
 )
-async def create_product(body: ProductCreate, admin: AdminUser) -> ProductRead:
-    return ProductRead(id=2, **body.model_dump(mode="json"))
+async def create_product(
+    body: ProductCreate, admin: AdminUser, db: DbSession
+) -> ProductRead:
+    return await catalog.save_product(db, body)
 
 
 @router.patch(
-    "/{product_id}", response_model=ProductRead,
-    responses=error_responses(401, 403, 404, 409), tags=["admin"], summary="Update a product",
+    "/{product_id}",
+    response_model=ProductRead,
+    tags=["admin"],
+    responses=error_responses(401, 403, 404, 409),
 )
 async def update_product(
-    product_id: ResourceId, body: ProductUpdate, admin: AdminUser,
+    product_id: ResourceId, body: ProductUpdate, admin: AdminUser, db: DbSession
 ) -> ProductRead:
-    return example_product(product_id)
+    return await catalog.save_product(db, body, product_id)
 
 
 @router.delete(
-    "/{product_id}", status_code=status.HTTP_204_NO_CONTENT,
-    responses=error_responses(401, 403, 404, 409), tags=["admin"], summary="Delete a product",
-    description="Soft delete by default; hard=true requests permanent deletion.",
+    "/{product_id}",
+    status_code=204,
+    tags=["admin"],
+    responses=error_responses(401, 403, 404, 409),
 )
 async def delete_product(
-    product_id: ResourceId, admin: AdminUser, hard: bool = False,
+    product_id: ResourceId, admin: AdminUser, db: DbSession, hard: bool = False
 ) -> Response:
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
+    await catalog.delete_product(db, product_id, hard)
+    return Response(status_code=204)
