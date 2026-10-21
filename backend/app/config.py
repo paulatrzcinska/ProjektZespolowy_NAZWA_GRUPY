@@ -12,6 +12,7 @@ class Settings(BaseSettings):
 
     app_name: str = "projekt-zespolowy-api"
     debug: bool = False
+    api_v1_prefix: str = "/api/v1"
     cors_origins: str = "http://localhost:5173,http://localhost:8081"
 
     def cors_origin_list(self) -> list[str]:
