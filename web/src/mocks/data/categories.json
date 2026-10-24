@@ -1,0 +1,6 @@
+[
+  { "id": 1, "name": "Legowiska", "slug": "legowiska", "description": "Miękkie legowiska i maty dla psów każdej wielkości." },
+  { "id": 2, "name": "Smycze i obroże", "slug": "smycze-i-obroze", "description": "Akcesoria spacerowe: smycze, obroże i szelki." },
+  { "id": 3, "name": "Zabawki", "slug": "zabawki", "description": "Gryzaki, piłki i zabawki interaktywne." },
+  { "id": 4, "name": "Miski i karmienie", "slug": "miski-i-karmienie", "description": "Miski, poidła i maty pod miski." }
+]
