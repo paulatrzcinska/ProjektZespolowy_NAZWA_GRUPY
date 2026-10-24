@@ -1,5 +1,6 @@
 import { apiFetch, apiResponse } from "./client";
 import type { ProductDetail, ProductListItem } from "./types";
+import { USE_MOCK_API, mockProduct, mockProductPage } from "../mocks/catalog";
 
 export type ProductSort = "newest" | "price_asc" | "price_desc" | "name";
 
@@ -17,6 +18,7 @@ export type ListProductsParams = {
 export async function fetchProductPage(
   params: ListProductsParams = {},
 ): Promise<{ items: ProductListItem[]; total: number | null }> {
+  if (USE_MOCK_API) return mockProductPage(params);
   const sp = new URLSearchParams();
   if (params.q) sp.set("q", params.q);
   if (params.sort) sp.set("sort", params.sort);
@@ -61,6 +63,7 @@ export async function fetchProduct(
   id: number,
   authenticated = false,
 ): Promise<ProductDetail> {
+  if (USE_MOCK_API) return mockProduct(id);
   return apiFetch<ProductDetail>(`/api/v1/products/${id}`, {
     auth: authenticated,
   });

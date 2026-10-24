@@ -1,0 +1,156 @@
+[
+  {
+    "id": 1,
+    "name": "Legowisko Cloud M",
+    "slug": "legowisko-cloud-m",
+    "description": "Ortopedyczne legowisko z pianki memory, zdejmowany pokrowiec do prania w 40°C. Rozmiar M (80×60 cm).",
+    "price": "189.00",
+    "stock_quantity": 12,
+    "category_id": 1,
+    "image_url": "https://images.unsplash.com/photo-1601758123927-4f7acc7da589?auto=format&fit=crop&w=800&q=70",
+    "is_active": true
+  },
+  {
+    "id": 2,
+    "name": "Legowisko Cloud L",
+    "slug": "legowisko-cloud-l",
+    "description": "Wersja L (100×75 cm) legowiska Cloud dla dużych ras.",
+    "price": "249.00",
+    "stock_quantity": 3,
+    "category_id": 1,
+    "image_url": "https://images.unsplash.com/photo-1581888227599-779811939961?auto=format&fit=crop&w=800&q=70",
+    "is_active": true
+  },
+  {
+    "id": 3,
+    "name": "Mata chłodząca",
+    "slug": "mata-chlodzaca",
+    "description": "Żelowa mata chłodząca na upalne dni, bez prądu i wody.",
+    "price": "79.90",
+    "stock_quantity": 0,
+    "category_id": 1,
+    "image_url": "https://images.unsplash.com/photo-1762547450600-5a57ea7abc54?auto=format&fit=crop&w=800&q=70",
+    "is_active": true
+  },
+  {
+    "id": 4,
+    "name": "Smycz taśmowa 2 m",
+    "slug": "smycz-tasmowa-2m",
+    "description": "Wytrzymała smycz z taśmy poliestrowej z karabińczykiem obrotowym.",
+    "price": "39.00",
+    "stock_quantity": 40,
+    "category_id": 2,
+    "image_url": "https://images.unsplash.com/photo-1708062270853-ee7c66b69f07?auto=format&fit=crop&w=800&q=70",
+    "is_active": true
+  },
+  {
+    "id": 5,
+    "name": "Szelki Guard S",
+    "slug": "szelki-guard-s",
+    "description": "Szelki typu guard z odblaskami, regulowane w 4 punktach.",
+    "price": "89.00",
+    "stock_quantity": 15,
+    "category_id": 2,
+    "image_url": "https://images.unsplash.com/photo-1581597359121-0f69057e2fb1?auto=format&fit=crop&w=800&q=70",
+    "is_active": true
+  },
+  {
+    "id": 6,
+    "name": "Obroża skórzana brąz",
+    "slug": "obroza-skorzana-braz",
+    "description": "Obroża z naturalnej skóry z mosiężną klamrą.",
+    "price": "69.00",
+    "stock_quantity": 8,
+    "category_id": 2,
+    "image_url": "https://images.unsplash.com/photo-1546687813-3fcc1c363a07?auto=format&fit=crop&w=800&q=70",
+    "is_active": true
+  },
+  {
+    "id": 7,
+    "name": "Piłka Kong Classic",
+    "slug": "pilka-kong-classic",
+    "description": "Gumowa piłka do aportu i wypełniania smakołykami.",
+    "price": "45.00",
+    "stock_quantity": 25,
+    "category_id": 3,
+    "image_url": "https://images.unsplash.com/photo-1508948956644-0017e845d797?auto=format&fit=crop&w=800&q=70",
+    "is_active": true
+  },
+  {
+    "id": 8,
+    "name": "Gryzak sznurowy",
+    "slug": "gryzak-sznurowy",
+    "description": "Bawełniany gryzak do przeciągania, wspomaga czyszczenie zębów.",
+    "price": "24.90",
+    "stock_quantity": 2,
+    "category_id": 3,
+    "image_url": "https://images.unsplash.com/photo-1774440865489-c7827c96aabc?auto=format&fit=crop&w=800&q=70",
+    "is_active": true
+  },
+  {
+    "id": 9,
+    "name": "Mata węchowa",
+    "slug": "mata-wechowa",
+    "description": "Zabawka interaktywna rozwijająca węch, do prania w pralce.",
+    "price": "59.00",
+    "stock_quantity": 10,
+    "category_id": 3,
+    "image_url": "https://images.unsplash.com/photo-1714068691252-685e1426c055?auto=format&fit=crop&w=800&q=70",
+    "is_active": true
+  },
+  {
+    "id": 10,
+    "name": "Miska stalowa 1,5 l",
+    "slug": "miska-stalowa-1-5l",
+    "description": "Miska ze stali nierdzewnej z antypoślizgowym spodem.",
+    "price": "29.00",
+    "stock_quantity": 30,
+    "category_id": 4,
+    "image_url": "https://images.unsplash.com/photo-1695023267262-7f4ab64152b2?auto=format&fit=crop&w=800&q=70",
+    "is_active": true
+  },
+  {
+    "id": 11,
+    "name": "Miska spowalniająca",
+    "slug": "miska-spowalniajaca",
+    "description": "Miska z labiryntem spowalniająca jedzenie łapczywych psów.",
+    "price": "34.90",
+    "stock_quantity": 18,
+    "category_id": 4,
+    "image_url": "https://images.unsplash.com/photo-1714068691210-073dc52c6c1d?auto=format&fit=crop&w=800&q=70",
+    "is_active": true
+  },
+  {
+    "id": 12,
+    "name": "Poidło podróżne 500 ml",
+    "slug": "poidlo-podrozne-500ml",
+    "description": "Składane poidło z butelką na spacery i wycieczki.",
+    "price": "32.00",
+    "stock_quantity": 22,
+    "category_id": 4,
+    "image_url": "https://images.unsplash.com/photo-1541887796712-054f4b0f8e5d?auto=format&fit=crop&w=800&q=70",
+    "is_active": true
+  },
+  {
+    "id": 13,
+    "name": "Miska ceramiczna w łapki",
+    "slug": "miska-ceramiczna-w-lapki",
+    "description": "Ceramiczna miska z wzorem w łapki, ciężka i stabilna, do zmywarki.",
+    "price": "22.00",
+    "stock_quantity": 50,
+    "category_id": 4,
+    "image_url": "https://images.unsplash.com/photo-1679224106783-c21b1841412a?auto=format&fit=crop&w=800&q=70",
+    "is_active": true
+  },
+  {
+    "id": 14,
+    "name": "Produkt archiwalny",
+    "slug": "produkt-archiwalny",
+    "description": "Nieaktywny produkt — widoczny tylko w panelu administratora.",
+    "price": "1.00",
+    "stock_quantity": 0,
+    "category_id": 3,
+    "image_url": "https://images.unsplash.com/photo-1708303364738-48188a0e050f?auto=format&fit=crop&w=800&q=70",
+    "is_active": false
+  }
+]

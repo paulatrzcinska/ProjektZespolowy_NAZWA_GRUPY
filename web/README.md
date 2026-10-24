@@ -81,6 +81,26 @@ Frontend nie ma jeszcze widoku płatności. Lokalna symulacja backendu może by�
 obsłużona przez Swagger UI; jej endpointy i włączenie są opisane w dokumentacji
 backendu. Interfejs odczytuje status zamówienia z API.
 
+## Dane makietowe (mock) bez backendu
+
+Katalog można uruchomić bez API i bazy danych — z lokalnych plików JSON:
+
+```bash
+cd web
+cp .env.example .env
+# w .env ustaw: VITE_USE_MOCK_API=true
+npm ci
+npm run dev
+```
+
+Źródło danych: `src/mocks/data/products.json` i `src/mocks/data/categories.json`,
+logika w `src/mocks/catalog.ts`. Tryb mock zastępuje wyłącznie publiczne odczyty
+katalogu (`GET /api/v1/products`, `GET /api/v1/products/:id`,
+`GET /api/v1/categories`) i zachowuje kontrakt z `docs/api-contract.md`:
+te same typy, filtrowanie, sortowanie i paginacja. Koszyk, logowanie i
+zamówienia nadal wymagają backendu. Wyłączenie mocka (puste `VITE_USE_MOCK_API`)
+przełącza aplikację na prawdziwe API bez zmian w kodzie.
+
 ## Build i PWA
 
 ```bash
