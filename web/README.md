@@ -101,6 +101,21 @@ te same typy, filtrowanie, sortowanie i paginacja. Koszyk, logowanie i
 zamówienia nadal wymagają backendu. Wyłączenie mocka (puste `VITE_USE_MOCK_API`)
 przełącza aplikację na prawdziwe API bez zmian w kodzie.
 
+## Docker (warstwa WEB, Public Subnet)
+
+`Dockerfile` buduje aplikację (Node 22) i serwuje `dist/` przez Nginx 1.27 z
+fallbackiem SPA (`nginx/default.conf`):
+
+```bash
+cd web
+docker build -t zdechpies-web --build-arg VITE_USE_MOCK_API=true .
+docker run --rm -p 8080:80 zdechpies-web
+```
+
+Sklep: http://localhost:8080. Zmienne `VITE_*` są wbudowywane w bundle podczas
+`docker build` (`--build-arg`), więc nie mogą zawierać sekretów. Proxy `/api/`
+do backendu i health check kontenera zostaną dodane przy wdrożeniu do chmury.
+
 ## Build i PWA
 
 ```bash
