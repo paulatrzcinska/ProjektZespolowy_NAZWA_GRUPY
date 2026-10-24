@@ -1,0 +1,30 @@
+# Lokalny katalog roboczy Terraform 
+.terraform/
+
+# Pliki stanu 
+*.tfstate
+*.tfstate.*
+
+# Zapisane plany 
+*.tfplan
+*.plan
+
+# Logi awarii
+crash.log
+crash.*.log
+
+# Pliki ze zmiennymi 
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+
+# Lokalne nadpisania konfiguracji
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Lokalna konfiguracja CLI
+.terraformrc
+terraform.rc
+
