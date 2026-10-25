@@ -5,7 +5,7 @@ variable "aws_region" {
 }
 
 variable "availability_zone" {
-  description = "Strefa dostępności dla podsieci"
+  description = "Domyślna strefa dostępności dla podsieci i bazy danych"
   type        = string
   default     = "eu-north-1a"
 }
@@ -27,12 +27,39 @@ variable "subnets" {
   type = map(object({
     cidr   = string
     public = bool
+    az     = optional(string) # domyślnie var.availability_zone
   }))
   default = {
     "public-web"  = { cidr = "10.0.1.0/24", public = true }
     "private-app" = { cidr = "10.0.2.0/24", public = false }
     "private-db"  = { cidr = "10.0.3.0/24", public = false }
+    # RDS wymaga podsieci w dwóch strefach (DB subnet group)
+    "private-db-2" = { cidr = "10.0.4.0/24", public = false, az = "eu-north-1b" }
   }
+}
+
+variable "db_subnets" {
+  description = "Podsieci prywatne bazy danych (DB subnet group)"
+  type        = list(string)
+  default     = ["private-db", "private-db-2"]
+}
+
+variable "db_instance_class" {
+  description = "Klasa instancji RDS (Free plan: tylko db.t4g.micro)"
+  type        = string
+  default     = "db.t4g.micro"
+}
+
+variable "db_engine_version" {
+  description = "Główna wersja PostgreSQL (minor aktualizuje AWS)"
+  type        = string
+  default     = "16"
+}
+
+variable "db_backup_retention_days" {
+  description = "Retencja automatycznych backupów (Free plan AWS dopuszcza maksymalnie 1 dzień)"
+  type        = number
+  default     = 1
 }
 
 variable "app_port" {
