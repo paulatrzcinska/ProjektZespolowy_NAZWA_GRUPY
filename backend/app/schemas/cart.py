@@ -15,6 +15,8 @@ class CartItemUpdate(BaseModel):
 
 
 class CartItemResponse(BaseModel):
+    model_config = {"from_attributes": True}
+
     id: int
     product_id: int
     quantity: int

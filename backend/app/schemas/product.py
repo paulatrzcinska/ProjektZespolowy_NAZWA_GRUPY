@@ -40,6 +40,8 @@ class ProductUpdate(BaseModel):
 
 
 class ProductListRead(BaseModel):
+    model_config = {"from_attributes": True}
+
     id: int
     name: str
     slug: str

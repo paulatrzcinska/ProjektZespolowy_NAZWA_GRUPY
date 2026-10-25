@@ -24,4 +24,6 @@ class CategoryUpdate(BaseModel):
 
 
 class CategoryRead(CategoryBase):
+    model_config = {"from_attributes": True}
+
     id: int

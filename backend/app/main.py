@@ -1,9 +1,20 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import health
 from app.config import get_settings
 from app.core.application import api_router, configure_runtime
+from app.database import engine
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        yield
+    finally:
+        await engine.dispose()
 
 
 def create_app() -> FastAPI:
@@ -11,6 +22,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title=settings.app_name,
         debug=settings.debug,
+        lifespan=lifespan,
         description=(
             "MVP API contract preview. Responses use example data; writes are not persisted. "
             "Use example-user-token or example-admin-token in Authorize to preview "

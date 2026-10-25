@@ -1,0 +1,16 @@
+# Wszystkie pliki tekstowe w repo i na dysku z końcami linii LF,
+# niezależnie od core.autocrlf na Windowsie.
+* text=auto eol=lf
+
+# Patche nakładamy bajt w bajt - bez żadnej konwersji.
+*.patch -text
+*.diff -text
+
+# Pliki binarne
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
