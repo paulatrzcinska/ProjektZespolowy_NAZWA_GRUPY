@@ -47,7 +47,7 @@ Zwykłe uruchomienie developerskie nie instaluje service workera.
 
 Frontend wysyła JSON zgodny z BE-2, kwoty jako stringi dziesiętne i token Bearer
 wyłącznie dla chronionych żądań. Paginacja katalogu korzysta z `X-Total-Count`.
-Odpowiedzi `204` nie są parsowane jako JSON. Błędy domenowe i walidacja `422`
+Odpowiedzi `204` nie są parsowane jako JSON. Błędy domenowe i walidacja `400`
 są pokazywane przy odpowiednich formularzach. `401` kończy sesję; `403` nie
 wylogowuje użytkownika. Role w interfejsie nie zastępują autoryzacji API.
 

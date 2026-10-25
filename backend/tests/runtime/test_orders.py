@@ -66,7 +66,7 @@ async def test_checkout_uses_latest_price_and_rejects_client_amount_fields(
         headers=customer["headers"],
         json={**SHIPPING, "total_amount": "0.01"},
     )
-    assert invalid.status_code == 422
+    assert invalid.status_code == 400
     order = await client.post(
         "/api/v1/orders", headers=customer["headers"], json=SHIPPING
     )
@@ -146,7 +146,7 @@ async def test_idempotent_retry_checks_owner_and_shipping_payload(
             headers={**customer["headers"], "Idempotency-Key": "invalid"},
             json=SHIPPING,
         )
-    ).status_code == 422
+    ).status_code == 400
 
 
 async def test_concurrent_idempotent_checkout_creates_one_order(

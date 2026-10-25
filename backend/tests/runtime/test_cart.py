@@ -109,7 +109,7 @@ async def test_cart_rejects_invalid_quantities(client, customer, product, quanti
         headers=customer["headers"],
         json={"product_id": product["id"], "quantity": quantity},
     )
-    assert response.status_code == 422
+    assert response.status_code == 400
 
 
 async def test_concurrent_additions_share_one_cart_and_keep_both_updates(

@@ -93,7 +93,7 @@ async def list_products(
     if include_inactive and (user is None or not user.is_admin):
         raise HTTPException(403, "Admin only")
     if min_price is not None and max_price is not None and min_price > max_price:
-        raise HTTPException(422, "min_price must not exceed max_price")
+        raise HTTPException(400, "min_price must not exceed max_price")
     filters = []
     if not include_inactive:
         filters.append(Product.is_active.is_(True))
@@ -135,13 +135,13 @@ async def save_product(
         if value is not None or key in nullable
     }
     if values.get("stock_quantity", 0) > 2147483647:
-        raise HTTPException(422, "Stock quantity must not exceed 2147483647")
+        raise HTTPException(400, "Stock quantity must not exceed 2147483647")
     if "category_id" in values:
         await category_or_404(db, values["category_id"])
     if values.get("image_url") is not None:
         values["image_url"] = str(values["image_url"])
         if len(values["image_url"]) > 2048:
-            raise HTTPException(422, "Image URL must not exceed 2048 characters")
+            raise HTTPException(400, "Image URL must not exceed 2048 characters")
     if product_id is None:
         item = Product(**values)
         db.add(item)

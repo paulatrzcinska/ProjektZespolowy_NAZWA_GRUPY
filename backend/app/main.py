@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api import health
 from app.config import get_settings
 from app.core.application import api_router, configure_runtime
+from app.core.errors import use_400_for_validation_errors
 from app.database import engine
 
 
@@ -52,6 +53,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(api_router(), prefix=settings.api_v1_prefix)
     configure_runtime(app)
+    use_400_for_validation_errors(app)
     return app
 
 
