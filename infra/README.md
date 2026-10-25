@@ -38,6 +38,9 @@ Ruch przechodzi kaskadowo przez kolejne warstwy: **Internet → web → app → 
 | `app-sg` | TCP 8000 (FastAPI) | tylko `web-sg` |
 | `db-sg` | TCP 5432 (PostgreSQL) | tylko `app-sg` |
 
+Ruch wychodzący: `web-sg` i `app-sg` – dowolny; `db-sg` – wyłącznie TCP 5432 do
+`app-sg`, więc baza nie może sama nawiązać połączenia z niczym innym.
+
 Port SSH (22) nie jest otwarty w żadnej grupie.
 
 ## Baza danych (RDS PostgreSQL)
@@ -83,4 +86,4 @@ Wymagania: Terraform >= 1.10, AWS CLI skonfigurowane na koncie technicznym `terr
 
 > **Uwaga:** sieć (Blok 3) i baza RDS (Blok 5) zostały utworzone ręcznie w konsoli AWS. Kod odwzorowuje je 1:1. Przed pierwszym `terraform apply` należy zaimportować istniejące zasoby (`import`) albo usunąć ręczne zasoby, aby nie utworzyć duplikatu. Do zarządzania RDS konto `terraform-network` potrzebuje dodatkowych uprawnień (obecnie ma tylko AmazonVPCFullAccess).
 >
-> Do sprawdzenia przy imporcie: podsumowanie RDS w konsoli pokazuje regułę wychodzącą `db-sg` skierowaną do grupy `app-sg`, a kod zakłada `0.0.0.0/0`. Przed `terraform plan` należy porównać reguły w VPC → Security groups → `db-sg` i ujednolicić kod.
+> Przy imporcie sprawdzić też tagi: w konsoli Security Groups nie mają tagu `Name` (kolumna Name jest pusta), a kod go ustawia – `terraform plan` pokaże to jako zmianę tagów, nie odtworzenie grupy.
