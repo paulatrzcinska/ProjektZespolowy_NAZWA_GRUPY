@@ -20,6 +20,8 @@ class UserProfileUpdate(BaseModel):
 
 
 class UserRead(UserProfileUpdate):
+    model_config = {"from_attributes": True}
+
     id: int
     email: EmailStr
     is_admin: bool

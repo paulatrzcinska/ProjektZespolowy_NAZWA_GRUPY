@@ -39,3 +39,21 @@ wymagające PostgreSQL są pomijane.
 
 Kontrakt i reguły operacji: [api-contract.md](../docs/api-contract.md).
 Status akceptacji przez frontend pozostaje do potwierdzenia przez zespół.
+
+## Warstwa danych
+
+SQLAlchemy 2, `asyncpg` i Alembic. Szczegóły ról, migracji oraz lokalnej bazy:
+[`db/README.md`](../db/README.md).
+
+Z katalogu `backend`:
+
+```bash
+uv run alembic -c ../db/alembic.ini upgrade head
+uv run python -m app.scripts.seed
+```
+
+Migracje i konfiguracja znajdują się w `db/alembic/` i `db/alembic.ini`.
+Modele pozostają w `app/models/`, a sesje udostępnia `app.database.get_db`.
+Migracje wymagają konta migracyjnego; backend używa ograniczonego konta
+aplikacyjnego. Zapis wymaga jawnego `commit`, zamknięcie sesji cofa niezapisane
+zmiany, a zatrzymanie aplikacji zwalnia pulę połączeń.

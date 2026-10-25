@@ -17,6 +17,8 @@ class OrderCreate(BaseModel):
 
 
 class OrderItemRead(BaseModel):
+    model_config = {"from_attributes": True}
+
     id: int
     product_id: int
     quantity: int
@@ -25,6 +27,8 @@ class OrderItemRead(BaseModel):
 
 
 class OrderRead(OrderCreate):
+    model_config = {"from_attributes": True}
+
     id: int
     status: OrderStatus
     total_amount: Decimal
