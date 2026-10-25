@@ -140,7 +140,7 @@ osobnym zadaniem. Zmiany backendu nie tworzą zasobów AWS.
 Z `backend/`, na osobnej bazie o nazwie zakończonej `_test`:
 
 ```bash
-export TEST_DATABASE_URL=postgresql+asyncpg://postgres:password@localhost:5432/shop_test
+export TEST_DATABASE_URL=postgresql+asyncpg://postgres:<POSTGRES_PASSWORD>@127.0.0.1:5432/shop_test
 uv run pytest
 ```
 

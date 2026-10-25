@@ -15,7 +15,7 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 settings = get_settings()
-database_url = settings.migration_database_url or settings.database_url
+database_url = settings.migration_database_url()
 target_metadata = Base.metadata
 
 
