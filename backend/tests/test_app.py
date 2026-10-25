@@ -9,6 +9,24 @@ def test_health(client: TestClient) -> None:
     assert response.json() == {"status": "ok"}
 
 
+def test_unhandled_error_returns_json_500(
+    client: TestClient, caplog: pytest.LogCaptureFixture
+) -> None:
+    async def broken() -> None:
+        raise RuntimeError("database password=secret leaked")
+
+    client.app.add_api_route("/broken", broken)
+
+    response = client.get("/broken", headers={"Origin": "http://localhost:5173"})
+
+    assert response.status_code == 500
+    assert response.json() == {"detail": "Internal server error"}
+    assert "secret" not in response.text
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert "Unhandled error: GET /broken" in caplog.text
+
+
 def test_swagger_ui(client: TestClient) -> None:
     response = client.get("/docs")
 

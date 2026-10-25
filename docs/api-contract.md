@@ -172,6 +172,8 @@ tagiem `admin` w Swaggerze. Nie wymagają osobnego prefiksu `/admin`.
 - Walidacja zwraca `400` (zamiast domyślnego `422` FastAPI) i standardowy
   `HTTPValidationError` z listą
   `detail`, zawierającą m.in. lokalizację `loc`, opis `msg` i typ `type`.
+- Nieoczekiwany błąd serwera zwraca `500` z `{"detail":"Internal server error"}`,
+  bez szczegółów technicznych; pełny opis błędu trafia tylko do logów API.
 
 ## Review frontendu
 
