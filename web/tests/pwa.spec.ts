@@ -46,7 +46,12 @@ test("service worker never stores account, cart, orders or admin catalogue", asy
     await navigator.serviceWorker.ready;
   });
   await page.reload();
+  const adminCategories = page.waitForRequest(request =>
+    request.url().endsWith("/api/v1/categories") &&
+    request.headers()["authorization"] === "Bearer example-admin-token",
+  );
   await page.goto("/admin");
+  await adminCategories;
   await expect(
     page.getByRole("heading", { name: "Administrator", exact: true }),
   ).toBeVisible();

@@ -5,7 +5,7 @@ zamówienia i administracja. Lokalna symulacja płatności jest opcjonalna.
 
 ## Uruchomienie
 
-Najpierw zastosuj osobny patch bazy i przygotuj PostgreSQL. Kompletna instrukcja,
+Najpierw przygotuj PostgreSQL i zastosuj migracje z `db/`. Kompletna instrukcja,
 konfiguracja JWT, tworzenie administratora i opis symulacji:
 [backend-runtime.md](../docs/backend-runtime.md).
 

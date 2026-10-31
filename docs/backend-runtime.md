@@ -4,11 +4,11 @@ Domyślny `API_MODE=live` korzysta z PostgreSQL. Rejestracja, katalog, koszyk,
 zamówienia, profil i operacje administratora zapisują dane przez SQLAlchemy.
 Publiczne modele i ścieżki BE-2 pozostają zgodne z frontendem.
 
-## Oddzielne zakresy zmian
+## Zależności
 
-Commit logiki backendu wymaga zastosowania osobnego patcha bazy danych.
-Modele ORM, połączenia, migracje, PostgreSQL Compose i testy warstwy danych
-nie są powtórnie dołączane do commita logiki. Frontend jest osobnym patchem.
+Repozytorium zawiera modele ORM, migracje, konfigurację lokalnego PostgreSQL
+i frontend. Przed startem API trzeba przygotować bazę i zastosować migracje;
+nie jest potrzebny dodatkowy patch kodu.
 
 ## Uruchomienie lokalne
 

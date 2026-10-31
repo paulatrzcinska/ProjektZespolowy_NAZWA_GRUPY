@@ -273,7 +273,7 @@ test("validation errors are readable and logout removes private query data", asy
 }) => {
   await page.route("**/api/v1/auth/login", (route) =>
     route.fulfill({
-      status: 422,
+      status: 400,
       json: {
         detail: [
           {

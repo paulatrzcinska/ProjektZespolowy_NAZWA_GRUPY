@@ -54,8 +54,8 @@ automatycznie przy starcie API. Zależność `app.database.get_db` udostępnia s
 na żądanie; zapis wymaga jawnego `commit`, a zamknięcie sesji cofa niezapisane
 zmiany. Po zatrzymaniu aplikacji pula połączeń jest zamykana.
 
-Endpointy kontraktu API nadal zwracają dane przykładowe. Podłączenie operacji
-HTTP do sesji i logiki biznesowej jest kolejnym etapem.
+API domyślnie działa w trybie `live` i zapisuje dane w PostgreSQL.
+Jawny tryb `contract` zwraca przykłady wyłącznie do lokalnych testów interfejsu.
 
 ## Schemat i integralność
 

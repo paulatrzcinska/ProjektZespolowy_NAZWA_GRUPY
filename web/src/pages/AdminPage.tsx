@@ -1,3 +1,4 @@
+import { validateProduct } from "../lib/catalogValidation";
 import { Plus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -59,6 +60,10 @@ export function AdminPage() {
   const [editingId, setEditingId] = useState<number | "new" | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [editingLoading, setEditingLoading] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
+  const busy = saving || deletingId !== null || editingLoading;
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<
     "all" | "active" | "inactive"
@@ -66,7 +71,7 @@ export function AdminPage() {
   const [categoryFilter, setCategoryFilter] = useState<"all" | number>("all");
 
   async function refreshLists() {
-    const cats = await fetchCategories();
+    const cats = await fetchCategories(true);
     setCategories(cats);
     const prods = await productsApi.fetchAllProducts({ includeInactive: true });
     setProducts(prods);
@@ -78,7 +83,7 @@ export function AdminPage() {
       setLoading(true);
       setError(null);
       try {
-        const cats = await fetchCategories();
+        const cats = await fetchCategories(true);
         if (cancelled) return;
         setCategories(cats);
         const prods = await productsApi.fetchAllProducts({
@@ -101,12 +106,17 @@ export function AdminPage() {
   }, []);
 
   function startNew() {
+    setSuccess(null);
+    setError(null);
     const first = categories[0]?.id ?? 1;
     setEditingId("new");
     setDraft(emptyDraft(first));
   }
 
   async function startEdit(id: number) {
+    if (busy) return;
+    setEditingLoading(true);
+    setSuccess(null);
     setError(null);
     try {
       const p = await productsApi.fetchProduct(id, true);
@@ -115,7 +125,7 @@ export function AdminPage() {
     } catch (e) {
       if (e instanceof ApiError) setError(e.message);
       else setError("Nie udało się wczytać produktu.");
-    }
+    } finally { setEditingLoading(false); }
   }
 
   function cancelEdit() {
@@ -124,15 +134,19 @@ export function AdminPage() {
   }
 
   async function onSave() {
-    if (!draft) return;
+    if (!draft || busy) return;
+    setSuccess(null);
+    setError(null);
+    const validationError = validateProduct(draft, categories.map((c) => c.id));
+    if (validationError) { setError(validationError); return; }
     setSaving(true);
     setError(null);
     try {
       const payload = {
-        name: draft.name,
+        name: draft.name.trim(),
         slug: draft.slug,
         description: draft.description.trim() ? draft.description : null,
-        price: draft.price,
+        price: draft.price.trim(),
         stock_quantity: draft.stock_quantity,
         category_id: draft.category_id,
         image_url: draft.image_url.trim() ? draft.image_url.trim() : null,
@@ -144,7 +158,9 @@ export function AdminPage() {
         await productsApi.updateProduct(editingId, payload);
       }
       cancelEdit();
-      await refreshLists();
+      setSuccess("Zapisano produkt.");
+      try { await refreshLists(); }
+      catch { setError("Zmiana została zapisana, ale nie udało się odświeżyć listy. Odśwież stronę."); }
     } catch (e) {
       if (e instanceof ApiError) setError(e.message);
       else setError("Zapis nie powiódł się.");
@@ -154,16 +170,20 @@ export function AdminPage() {
   }
 
   async function onDelete(id: number) {
-    if (!window.confirm("Ukryć produkt w katalogu?")) return;
+    if (busy || !window.confirm("Ukryć produkt w katalogu?")) return;
+    setDeletingId(id);
+    setSuccess(null);
     setError(null);
     try {
       await productsApi.deleteProduct(id);
       if (editingId === id) cancelEdit();
-      await refreshLists();
+      setSuccess("Produkt został ukryty.");
+      try { await refreshLists(); }
+      catch { setError("Produkt został ukryty, ale nie udało się odświeżyć listy. Odśwież stronę."); }
     } catch (e) {
       if (e instanceof ApiError) setError(e.message);
       else setError("Nie udało się ukryć produktu.");
-    }
+    } finally { setDeletingId(null); }
   }
 
   const dashboardStats = useMemo(() => {
@@ -222,7 +242,7 @@ export function AdminPage() {
           <Button
             type="button"
             onClick={() => startNew()}
-            disabled={categories.length === 0}
+            disabled={busy || categories.length === 0}
             className="gap-2"
           >
             <Plus className="size-4" strokeWidth={1.75} aria-hidden />
@@ -231,6 +251,9 @@ export function AdminPage() {
         </div>
       </div>
 
+      {success ? <div className="mb-6"><Alert tone="success">{success}</Alert></div> : null}
+      {deletingId !== null ? <Alert>Trwa usuwanie…</Alert> : null}
+      {editingLoading ? <Alert>Wczytywanie produktu…</Alert> : null}
       {error ? (
         <div className="mb-6">
           <Alert tone="error">{error}</Alert>
@@ -240,7 +263,7 @@ export function AdminPage() {
       {categories.length === 0 ? (
         <div className="mb-8">
           <Alert tone="info">
-            Brak kategorii w bazie — dodaj je przez API lub SQL, zanim utworzysz
+            Brak kategorii — przejdź do zakładki Kategorie i dodaj kategorię, zanim utworzysz
             produkt.
           </Alert>
         </div>
@@ -377,6 +400,7 @@ export function AdminPage() {
                             type="button"
                             variant="ghost"
                             size="sm"
+                            disabled={busy}
                             onClick={() => void startEdit(p.id)}
                           >
                             Edytuj
@@ -385,6 +409,7 @@ export function AdminPage() {
                             type="button"
                             variant="danger"
                             size="sm"
+                            disabled={busy}
                             onClick={() => void onDelete(p.id)}
                           >
                             Ukryj
@@ -414,7 +439,7 @@ export function AdminPage() {
             <h2 className="font-display text-xl font-semibold text-ink">
               {editingId === "new" ? "Nowy produkt" : "Edycja produktu"}
             </h2>
-            <div className="mt-6 flex flex-col gap-5">
+            <fieldset disabled={busy} className="mt-6 flex min-w-0 flex-col gap-5">
               <Input
                 label="Nazwa"
                 name="name"
@@ -464,11 +489,11 @@ export function AdminPage() {
                 name="stock"
                 type="number"
                 min={0}
-                value={String(draft.stock_quantity)}
+                value={Number.isNaN(draft.stock_quantity) ? "" : String(draft.stock_quantity)}
                 onChange={(e) =>
                   setDraft({
                     ...draft,
-                    stock_quantity: Math.max(0, Number(e.target.value) || 0),
+                    stock_quantity: e.target.value === "" ? NaN : Number(e.target.value),
                   })
                 }
               />
@@ -518,12 +543,13 @@ export function AdminPage() {
                 <Button
                   type="button"
                   variant="ghost"
+                  disabled={busy}
                   onClick={() => cancelEdit()}
                 >
                   Anuluj
                 </Button>
               </div>
-            </div>
+            </fieldset>
           </aside>
         ) : null}
       </div>

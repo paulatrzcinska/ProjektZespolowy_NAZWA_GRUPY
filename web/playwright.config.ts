@@ -44,6 +44,7 @@ export default defineConfig({
       env: {
         API_PROXY_TARGET: "http://127.0.0.1:18000",
         VITE_API_BASE_URL: "",
+        VITE_USE_MOCK_API: "false",
       },
       url: "http://127.0.0.1:4175",
       timeout: 120_000,
