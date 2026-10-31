@@ -157,10 +157,11 @@ ten schemat po zakończeniu. Sprawdzają migracje, relacje, ograniczenia, sesje,
 serializację i powtarzalność seeda. Nie korzystają z `DATABASE_URL` jako
 domyślnej bazy testowej.
 
-## Docelowe RDS
+## RDS w AWS
 
-RDS powinien używać tej samej głównej wersji PostgreSQL, prywatnych podsieci,
-`publicly_accessible = false` i dostępu 5432 tylko z warstwy API. Migrator działa
+Instancja `pz-db` (PostgreSQL 16, baza `shop`) działa w prywatnych podsieciach
+`private-db`/`private-db-2`, bez publicznego IP, z dostępem 5432 tylko z `app-sg`.
+Konfiguracja i endpoint: [`infra/README.md`](../infra/README.md). Migrator działa
 jako oddzielne zadanie wewnątrz VPC, a runtime otrzymuje wyłącznie konto aplikacyjne.
 Hasła pochodzą z AWS Secrets Manager: definicja zadania ECS wstrzykuje pole
 `password` sekretu jako zmienną `DB_PASSWORD` (`secrets` → `valueFrom`), a
@@ -170,7 +171,7 @@ działającej aplikacji.
 
 Ustawienie `DATABASE_SSL_CA` na ścieżkę do zaufanego bundle CA RDS włącza
 weryfikację certyfikatu i nazwy hosta dla połączeń aplikacji i migracji.
-`DB_HOST` musi być nazwą endpointu RDS. Automatyczne backupy RDS mają mieć
-retencję 7 dni; wdrożenie RDS i polityka backupów pozostają w zakresie infrastruktury.
+`DB_HOST` musi być nazwą endpointu RDS. Automatyczne backupy RDS mają retencję
+1 dnia – to maksimum dla konta AWS na Free planie (docelowo 7 dni po zmianie planu).
 
 Sposób weryfikacji połączeń TLS opisuje [dokumentacja RDS PostgreSQL](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/PostgreSQL.Concepts.General.SSL.html).

@@ -47,13 +47,13 @@ resource "aws_internet_gateway" "main" {
   }
 }
 
-# podsieci 3-tier: public-web, private-app, private-db
+# podsieci 3-tier: public-web, private-app, private-db (+ private-db-2 dla RDS)
 resource "aws_subnet" "this" {
   for_each = var.subnets
 
   vpc_id                  = aws_vpc.main.id
   cidr_block              = each.value.cidr
-  availability_zone       = var.availability_zone
+  availability_zone       = coalesce(each.value.az, var.availability_zone)
   map_public_ip_on_launch = each.value.public
 
   tags = {
@@ -162,16 +162,67 @@ resource "aws_vpc_security_group_ingress_rule" "db_from_app" {
   to_port                      = var.db_port
 }
 
-# ruch wychodzący: dozwolony 
+# ruch wychodzący: dozwolony dla warstw web i app
 resource "aws_vpc_security_group_egress_rule" "all_out" {
   for_each = {
     web = aws_security_group.web.id
     app = aws_security_group.app.id
-    db  = aws_security_group.db.id
   }
 
   security_group_id = each.value
   description       = "Caly ruch wychodzacy"
   cidr_ipv4         = "0.0.0.0/0"
   ip_protocol       = "-1"
+}
+
+# db: ruch wychodzący tylko do app-sg (jak w konsoli); odpowiedzi na zapytania
+# przechodzą i tak, bo Security Groups są stanowe
+resource "aws_vpc_security_group_egress_rule" "db_to_app" {
+  security_group_id            = aws_security_group.db.id
+  referenced_security_group_id = aws_security_group.app.id
+  ip_protocol                  = "tcp"
+  from_port                    = var.db_port
+  to_port                      = var.db_port
+}
+
+# Baza danych: RDS PostgreSQL w podsieciach prywatnych, bez publicznego IP
+resource "aws_db_subnet_group" "db" {
+  name        = "${var.project_name}-db-subnet-group"
+  description = "Prywatne podsieci bazy danych (private-db, private-db-2)"
+  subnet_ids  = [for name in var.db_subnets : aws_subnet.this[name].id]
+}
+
+resource "aws_db_instance" "main" {
+  identifier     = "${var.project_name}-db"
+  engine         = "postgres"
+  engine_version = var.db_engine_version
+  instance_class = var.db_instance_class
+
+  allocated_storage     = 20
+  max_allocated_storage = 0 # autoscaling wyłączony - stały koszt
+  storage_type          = "gp3"
+  storage_encrypted     = true # klucz aws/rds
+
+  db_name  = "shop"
+  username = "pgadmin"
+  # hasło generuje i przechowuje AWS Secrets Manager - nigdy nie trafia do kodu
+  manage_master_user_password = true
+
+  db_subnet_group_name   = aws_db_subnet_group.db.name
+  vpc_security_group_ids = [aws_security_group.db.id]
+  publicly_accessible    = false
+  multi_az               = false
+  availability_zone      = var.availability_zone
+  port                   = var.db_port
+
+  backup_retention_period    = var.db_backup_retention_days
+  copy_tags_to_snapshot      = true
+  auto_minor_version_upgrade = true
+  deletion_protection        = true
+  skip_final_snapshot        = false
+  final_snapshot_identifier  = "${var.project_name}-db-final"
+
+  database_insights_mode                = "standard"
+  performance_insights_enabled          = true
+  performance_insights_retention_period = 7 # bezpłatne
 }
