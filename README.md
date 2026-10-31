@@ -1,19 +1,22 @@
 # Z Dech Pies
 
-Projekt e-commerce: katalog, koszyk, zamówienia i panel administratora. W bloku 6 uruchamiamy lokalnie React → FastAPI → PostgreSQL. AWS/CD pozostaje na później.
+Wieloplatformowa aplikacja e-commerce umożliwiająca przeglądanie produktów, zarządzanie koszykiem, składanie zamówień oraz obsługę płatności internetowych.
 
-Zaimplementowano aplikację PWA (React) i backend FastAPI/PostgreSQL. Klient React Native jest planowany. Płatności mają opcjonalną lokalną symulację, bez rzeczywistej bramki.
+System obejmuje aplikację webową PWA (React), backend oparty na FastAPI i PostgreSQL oraz panel administracyjny do zarządzania ofertą sklepu. W dalszych etapach planowany jest rozwój aplikacji mobilnej (React Native) i integracja z rzeczywistą bramką płatności.
 
 ## Funkcjonalności
 
 **Dla klienta**
 - przeglądanie katalogu produktów i kategorii
 - zarządzanie koszykiem
-- składanie zamówień (rzeczywista bramka płatności jest planowana)
-- rejestracja, logowanie i konto użytkownika
+- składanie zamówień
+- rejestracja, logowanie i zarządzanie kontem użytkownika
+- opcjonalna lokalna symulacja płatności
 
 **Dla administratora**
-- zarządzanie produktami i kategoriami
+- zarządzanie produktami i kategoriami (CRUD)
+- zarządzanie cenami i stanami magazynowymi
+- ukrywanie i ponowna aktywacja produktów
 - podgląd i obsługa zamówień
 
 ## Technologie
@@ -21,26 +24,32 @@ Zaimplementowano aplikację PWA (React) i backend FastAPI/PostgreSQL. Klient Rea
 | Obszar | Technologie |
 | --- | --- |
 | Frontend (web) | React, TypeScript, PWA |
-| Frontend (mobile) | React Native |
+| Frontend (mobile) | React Native (planowany) |
 | Backend | Python, FastAPI |
 | Baza danych | PostgreSQL |
-| Chmura | AWS |
+| Chmura | AWS (docelowo) |
 
 ## Architektura
 
-System ma architekturę trójwarstwową. W bloku 6 wszystkie warstwy działają lokalnie:
+System oparty jest na architekturze trójwarstwowej. Obecnie aplikacja działa w środowisku lokalnym, natomiast docelowo planowane jest wdrożenie w chmurze AWS.
 
-1. **Web:** React/TypeScript i Vite, formularze oraz klient REST.
-2. **API:** FastAPI/Uvicorn, logika biznesowa, JWT i walidacja.
-3. **Dane:** PostgreSQL 16 i Alembic; `shop_app` dla API, `shop_migrator` dla migracji.
+1. **Warstwa Web** – aplikacja PWA (React + TypeScript), obsługująca interfejs użytkownika, formularze i komunikację z REST API. Docelowo przewidziano hosting w Amazon S3 z dystrybucją przez CloudFront.
+2. **Warstwa API** – backend w Pythonie (FastAPI), odpowiedzialny za logikę biznesową, walidację danych, uwierzytelnianie JWT oraz obsługę zapytań do bazy danych.
+3. **Warstwa Database** – relacyjna baza PostgreSQL, przechowująca dane aplikacji. Migracje schematu realizowane są przez Alembic. Docelowo planowane jest wykorzystanie Amazon RDS w prywatnej podsieci VPC.
 
-REST/JSON przechodzi przez lokalne proxy Vite `/api`; HTTP jest ograniczony do loopback. Sekrety pochodzą z ignorowanych `.env` i `.env.runtime`. Docelowe AWS opisuje katalog `infra/`.
+Komunikacja pomiędzy frontendem i backendem odbywa się przez REST API. Dostęp do PostgreSQL jest realizowany wyłącznie przez backend z wykorzystaniem SQLAlchemy.
+
+### Schemat komunikacji
+
+```mermaid
+flowchart LR
+    A["Frontend (React)"] <-->|HTTP / JSON| B["Backend (FastAPI)"]
+    B <-->|SQLAlchemy| C[("PostgreSQL")]
+```
 
 ## Struktura repozytorium
 
-Struktura repozytorium (`web/` odpowiada katalogowi `/frontend` z checklisty):
-
-```
+```text
 .
 ├── web/        # aplikacja PWA (React + TypeScript)
 ├── mobile/     # aplikacja mobilna (React Native)
@@ -52,79 +61,90 @@ Struktura repozytorium (`web/` odpowiada katalogowi `/frontend` z checklisty):
 
 ## Uruchomienie lokalne
 
-Wymagania: PostgreSQL 16 (Docker Compose lub natywny), Python 3.12+, uv, Node.js 22.12+ i npm 10+. Wariant bez Dockera opisuje [instrukcja lokalna](docs/blok06-local.md).
+Do uruchomienia aplikacji wymagane są Python 3.12+, uv, Node.js, npm oraz PostgreSQL 16.
 
-1. Przygotuj PostgreSQL, role, migracje i uprawnienia według [db/README.md](db/README.md).
-   Uzupełnij lokalne `db/.env` i `backend/.env` na podstawie szablonów, używając własnych haseł.
-2. W katalogu `backend` wykonaj `uv sync --locked`, skopiuj `.env.runtime.example`
-   do `.env.runtime` i ustaw losowy `JWT_SECRET` (co najmniej 32 bajty).
-   Pozostaw `API_MODE=live` i `APP_ENV=local`.
-3. Wykonaj `uv run python -m app.scripts.seed` (opcjonalny katalog), następnie
-   `uv run python -m app.scripts.create_admin admin@example.com` i podaj własne hasło.
-4. Uruchom API: `uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000`.
-5. W drugim terminalu, w `web`, wykonaj `npm ci`, skopiuj `.env.example` do `.env`
-   i ustaw `VITE_USE_MOCK_API=false`. Pozostaw `VITE_API_BASE_URL` puste,
-   a `API_PROXY_TARGET=http://127.0.0.1:8000`. Wykonaj `npm run dev`.
-6. Otwórz adres wypisany przez Vite, zaloguj administratora i przejdź do `/admin`.
+1. Przygotuj bazę PostgreSQL, role i migracje zgodnie z instrukcją [db/README.md](db/README.md).
+2. W katalogu `backend/` zainstaluj zależności poleceniem `uv sync --locked`.
+3. Przygotuj pliki `.env` oraz `.env.runtime` na podstawie dostępnych szablonów i ustaw `API_MODE=live`.
+4. Uruchom backend:
 
-W PowerShell kopiowanie plików wykonasz przez `Copy-Item źródło cel`.
-Sekrety pozostają poza repozytorium. Szczegóły konfiguracji:
-[backend-runtime.md](docs/backend-runtime.md).
+   ```bash
+   uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+   ```
+
+5. W katalogu `web/` zainstaluj zależności za pomocą `npm ci`, przygotuj plik `.env` i ustaw `VITE_USE_MOCK_API=false` oraz `API_PROXY_TARGET=http://127.0.0.1:8000`.
+6. Uruchom frontend:
+
+   ```bash
+   npm run dev
+   ```
+
+Frontend będzie dostępny pod adresem wskazanym przez Vite, a dokumentacja Swagger API pod `http://127.0.0.1:8000/docs`.
+
+Szczegółowa instrukcja konfiguracji bazy, środowiska lokalnego i testów integracyjnych znajduje się w [docs/blok06-local.md](docs/blok06-local.md).
 
 ## API Endpoints
 
-Prefiks: `/api/v1`. Odczyt katalogu jest publiczny, modyfikacje katalogu wymagają JWT administratora.
+API udostępnia operacje CRUD dla produktów i kategorii oraz obsługę użytkowników, koszyka i zamówień.
 
-| Metoda | Endpoint | Działanie | Sukces |
-| --- | --- | --- | --- |
-| GET | `/products`, `/products/{id}` | Lista i szczegóły produktu | 200 |
-| POST | `/products` | Utworzenie produktu | 201 |
-| PATCH | `/products/{id}` | Aktualizacja produktu | 200 |
-| DELETE | `/products/{id}` | Ukrycie produktu (`hard=true`: usunięcie bez powiązań) | 204 |
-| GET | `/categories`, `/categories/{id}` | Lista i szczegóły kategorii | 200 |
-| POST | `/categories` | Utworzenie kategorii | 201 |
-| PATCH | `/categories/{id}` | Aktualizacja kategorii | 200 |
-| DELETE | `/categories/{id}` | Usunięcie pustej kategorii | 204 |
-| POST | `/auth/register`, `/auth/login` | Rejestracja / tokeny | 201 / 200 |
-| GET, PATCH | `/auth/me` | Profil zalogowanego użytkownika | 200 |
-| GET | `/cart` | Odczyt koszyka | 200 |
-| POST | `/cart/items` | Dodanie produktu do koszyka | 201 |
-| PATCH, DELETE | `/cart/items/{id}` | Zmiana ilości / usunięcie pozycji | 200 |
-| GET, POST | `/orders` | Historia / utworzenie zamówienia | 200 / 201 |
-| GET | `/orders/{id}` | Szczegóły zamówienia | 200 |
+Prefiks API: `/api/v1`.
 
-Przykład POST `/products` (użyj ID istniejącej kategorii):
+| Metoda | Endpoint | Działanie |
+| --- | --- | --- |
+| GET | `/products` | Lista produktów |
+| POST | `/products` | Dodanie produktu |
+| PATCH | `/products/{id}` | Edycja produktu |
+| DELETE | `/products/{id}` | Ukrycie lub usunięcie produktu |
+| GET | `/categories` | Lista kategorii |
+| POST | `/categories` | Dodanie kategorii |
+| PATCH | `/categories/{id}` | Edycja kategorii |
+| DELETE | `/categories/{id}` | Usunięcie pustej kategorii |
+| POST | `/auth/login` | Logowanie użytkownika |
+| GET | `/cart` | Odczyt koszyka |
+| GET, POST | `/orders` | Pobieranie i tworzenie zamówień |
+
+Przykładowe żądanie `POST /api/v1/products`:
 
 ```json
-{"name":"Legowisko testowe","slug":"legowisko-testowe","price":"199.99","stock_quantity":3,"category_id":1,"is_active":true}
+{
+  "name": "Legowisko testowe",
+  "slug": "legowisko-testowe",
+  "price": "199.99",
+  "stock_quantity": 3,
+  "category_id": 1,
+  "is_active": true
+}
 ```
 
-Odpowiedź zawiera zapisany produkt z `id`, `description` i `image_url`.
-Przykładowa odpowiedź `201` (identyfikator zależy od bazy):
+API zwraca odpowiednie kody HTTP, m.in. `200`, `201`, `204`, `400`, `401`, `403`, `404` i `409`.
 
-```json
-{"id":15,"name":"Legowisko testowe","slug":"legowisko-testowe","price":"199.99","stock_quantity":3,"category_id":1,"is_active":true,"description":null,"image_url":null}
+Pełny opis endpointów, przykłady odpowiedzi JSON oraz kodów HTTP znajduje się w [docs/api-contract.md](docs/api-contract.md).
+
+## Testowanie
+
+Projekt wykorzystuje pytest do testowania backendu oraz Playwright do weryfikacji interfejsu użytkownika i integracji E2E.
+
+Podstawowe polecenia:
+
+```bash
+# backend/
+uv run pytest
+
+# web/
+npm run typecheck
+npm run build
+npm run test:e2e
 ```
 
-PATCH przyjmuje np. `{"price":"249.99"}`. Błędy zwracają `detail`:
-400 (walidacja), 401/403 (uwierzytelnianie/uprawnienia), 404 (brak zasobu),
-409 (konflikt), 500 (awaria). Pełne przykłady i pozostałe endpointy:
-[kontrakt API](docs/api-contract.md), Swagger pod `http://127.0.0.1:8000/docs`.
+Dodatkowo dostępne są testy pełnej integracji z rzeczywistą bazą PostgreSQL:
 
-## Integracja i sprawdzenie bloku 6
-
-```mermaid
-flowchart LR
-    Browser[Przeglądarka React] -->|lokalnie /api przez proxy Vite| API[FastAPI: API_MODE=live]
-    API -->|SQLAlchemy / SQL| PG[(PostgreSQL)]
-    PG -->|zapis / odczyt| API
-    API -->|JSON, status HTTP| Browser
+```bash
+npm run test:e2e:live
 ```
 
-Przeglądarka nie łączy się bezpośrednio z bazą.
-`npm run test:e2e` sprawdza kontrakt, a osobne `npm run test:e2e:live` wykonuje rzeczywisty CRUD na przygotowanym PostgreSQL.
-Konfiguracja, ręczny odbiór, test restartu i dowody E1–E5:
-[blok06-local.md](docs/blok06-local.md). Scalenie do `main` pozostaje osobnym krokiem właściciela PR-a.
+Testy kontraktowe weryfikują interfejs i zgodność z API, natomiast testy live sprawdzają rzeczywisty przepływ danych pomiędzy React, FastAPI i PostgreSQL.
+
+Szczegóły przygotowania środowiska testowego i scenariuszy znajdują się w [docs/blok06-local.md](docs/blok06-local.md).
 
 ## Zespół
 
@@ -142,5 +162,6 @@ Konfiguracja, ręczny odbiór, test restartu i dowody E1–E5:
 
 ## Architektura 3-tier
 
-<img width="909" height="1033" alt="image" src="https://github.com/user-attachments/assets/0c23df7d-5dce-4907-9fde-ff9c1a3d367d" />
+Poniższy diagram przedstawia docelową architekturę aplikacji w chmurze AWS.
 
+<img width="909" height="1033" alt="Architektura 3-tier" src="https://github.com/user-attachments/assets/0c23df7d-5dce-4907-9fde-ff9c1a3d367d" />
