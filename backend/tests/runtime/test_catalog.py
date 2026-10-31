@@ -77,7 +77,7 @@ async def test_catalog_filters_sorts_and_counts_before_pagination(
         await client.get(
             "/api/v1/products", params={"min_price": "250", "max_price": "50"}
         )
-    ).status_code == 422
+    ).status_code == 400
 
 
 async def test_product_patch_null_rules_soft_delete_and_admin_visibility(
@@ -183,7 +183,7 @@ async def test_invalid_catalog_updates_are_rejected(client, admin, product, payl
     response = await client.patch(
         f"/api/v1/products/{product['id']}", headers=admin["headers"], json=payload
     )
-    assert response.status_code == 422
+    assert response.status_code == 400
 
 
 @pytest.mark.parametrize(

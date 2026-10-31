@@ -55,11 +55,11 @@ wykonywać operacje dostępne dla użytkownika. `—` oznacza brak body.
 
 | Metoda | Ścieżka | Dostęp | Request | Sukces / response | Pozostałe kody |
 | --- | --- | --- | --- | --- | --- |
-| POST | `/auth/register` | publiczny | `UserCreate` | `201 UserRead` | 409, 422 |
-| POST | `/auth/login` | publiczny | `LoginRequest` | `200 Token` | 401, 403, 422 |
+| POST | `/auth/register` | publiczny | `UserCreate` | `201 UserRead` | 400, 409 |
+| POST | `/auth/login` | publiczny | `LoginRequest` | `200 Token` | 400, 401, 403 |
 | GET | `/auth/me` | użytkownik | — | `200 UserRead` | 401 |
-| PATCH | `/auth/me` | użytkownik | `UserProfileUpdate` | `200 UserRead` | 401, 422 |
-| POST | `/auth/change-password` | użytkownik | `PasswordChangeRequest` | `204`, bez body | 401, 422 |
+| PATCH | `/auth/me` | użytkownik | `UserProfileUpdate` | `200 UserRead` | 400, 401 |
+| POST | `/auth/change-password` | użytkownik | `PasswordChangeRequest` | `204`, bez body | 400, 401 |
 
 `UserCreate` zawiera e-mail, hasło (8–128 znaków) i opcjonalną nazwę użytkownika.
 `UserRead` zawiera identyfikator, e-mail, `full_name`, `is_admin` oraz opcjonalny
@@ -71,10 +71,10 @@ nie pozwala zmienić roli; obejmuje nazwę użytkownika i adres dostawy.
 | Metoda | Ścieżka | Dostęp | Request | Sukces / response | Pozostałe kody |
 | --- | --- | --- | --- | --- | --- |
 | GET | `/categories` | publiczny | — | `200 CategoryRead[]` | — |
-| GET | `/categories/{category_id}` | publiczny | — | `200 CategoryRead` | 404, 422 |
-| POST | `/categories` | admin | `CategoryCreate` | `201 CategoryRead` | 401, 403, 409, 422 |
-| PATCH | `/categories/{category_id}` | admin | `CategoryUpdate` | `200 CategoryRead` | 401, 403, 404, 409, 422 |
-| DELETE | `/categories/{category_id}` | admin | — | `204`, bez body | 401, 403, 404, 409, 422 |
+| GET | `/categories/{category_id}` | publiczny | — | `200 CategoryRead` | 400, 404 |
+| POST | `/categories` | admin | `CategoryCreate` | `201 CategoryRead` | 400, 401, 403, 409 |
+| PATCH | `/categories/{category_id}` | admin | `CategoryUpdate` | `200 CategoryRead` | 400, 401, 403, 404, 409 |
+| DELETE | `/categories/{category_id}` | admin | — | `204`, bez body | 400, 401, 403, 404, 409 |
 
 Kategoria zawiera `name`, unikalny `slug` i opcjonalny `description`.
 Usunięcie kategorii z produktami docelowo daje `409`.
@@ -83,11 +83,11 @@ Usunięcie kategorii z produktami docelowo daje `409`.
 
 | Metoda | Ścieżka | Dostęp | Request | Sukces / response | Pozostałe kody |
 | --- | --- | --- | --- | --- | --- |
-| GET | `/products` | publiczny | query poniżej | `200 ProductListRead[]` | 401, 403, 422 |
-| GET | `/products/{product_id}` | publiczny | — | `200 ProductRead` | 404, 422 |
-| POST | `/products` | admin | `ProductCreate` | `201 ProductRead` | 401, 403, 409, 422 |
-| PATCH | `/products/{product_id}` | admin | `ProductUpdate` | `200 ProductRead` | 401, 403, 404, 409, 422 |
-| DELETE | `/products/{product_id}` | admin | opcjonalne `hard=false` w query | `204`, bez body | 401, 403, 404, 409, 422 |
+| GET | `/products` | publiczny | query poniżej | `200 ProductListRead[]` | 400, 401, 403 |
+| GET | `/products/{product_id}` | publiczny | — | `200 ProductRead` | 400, 404 |
+| POST | `/products` | admin | `ProductCreate` | `201 ProductRead` | 400, 401, 403, 409 |
+| PATCH | `/products/{product_id}` | admin | `ProductUpdate` | `200 ProductRead` | 400, 401, 403, 404, 409 |
+| DELETE | `/products/{product_id}` | admin | opcjonalne `hard=false` w query | `204`, bez body | 400, 401, 403, 404, 409 |
 
 | Parametr listy | Typ / domyślna wartość | Znaczenie docelowe |
 | --- | --- | --- |
@@ -117,9 +117,9 @@ usunięcia; powiązania z koszykami lub zamówieniami mogą spowodować `409`.
 | Metoda | Ścieżka | Dostęp | Request | Sukces / response | Pozostałe kody |
 | --- | --- | --- | --- | --- | --- |
 | GET | `/cart` | użytkownik | — | `200 CartResponse` | 401 |
-| POST | `/cart/items` | użytkownik | `CartItemAdd` | `201 CartResponse` | 400, 401, 404, 422 |
-| PATCH | `/cart/items/{item_id}` | użytkownik | `CartItemUpdate` | `200 CartResponse` | 400, 401, 404, 422 |
-| DELETE | `/cart/items/{item_id}` | użytkownik | — | `200 CartResponse` | 401, 404, 422 |
+| POST | `/cart/items` | użytkownik | `CartItemAdd` | `201 CartResponse` | 400, 401, 404 |
+| PATCH | `/cart/items/{item_id}` | użytkownik | `CartItemUpdate` | `200 CartResponse` | 400, 401, 404 |
+| DELETE | `/cart/items/{item_id}` | użytkownik | — | `200 CartResponse` | 400, 401, 404 |
 
 `CartItemAdd` przyjmuje `product_id` i `quantity` (1–999); `CartItemUpdate` tylko
 `quantity`. PATCH ustawia nową ilość, a nie przyrost. `item_id` oznacza pozycję
@@ -132,11 +132,11 @@ wierszy. Pozycja zawiera `id`, `product_id`, `quantity`, `line_total` i zagnież
 
 | Metoda | Ścieżka | Dostęp | Request | Sukces / response | Pozostałe kody |
 | --- | --- | --- | --- | --- | --- |
-| POST | `/orders` | użytkownik | `OrderCreate` | `201 OrderRead` | 400, 401, 409, 422 |
+| POST | `/orders` | użytkownik | `OrderCreate` | `201 OrderRead` | 400, 401, 409 |
 | GET | `/orders` | użytkownik | — | `200 OrderRead[]` | 401 |
-| GET | `/orders/{order_id}` | właściciel | — | `200 OrderRead` | 401, 404, 422 |
-| GET | `/orders/admin/all` | admin | query poniżej | `200 OrderRead[]` | 401, 403, 422 |
-| PATCH | `/orders/{order_id}/status` | admin | `OrderStatusUpdate` | `200 OrderRead` | 400, 401, 403, 404, 422 |
+| GET | `/orders/{order_id}` | właściciel | — | `200 OrderRead` | 400, 401, 404 |
+| GET | `/orders/admin/all` | admin | query poniżej | `200 OrderRead[]` | 400, 401, 403 |
+| PATCH | `/orders/{order_id}/status` | admin | `OrderStatusUpdate` | `200 OrderRead` | 400, 401, 403, 404 |
 
 `OrderCreate` zawiera wyłącznie dane wysyłki: `shipping_full_name`,
 `shipping_address_line1`, opcjonalne `shipping_address_line2`, `shipping_city`,
@@ -169,8 +169,11 @@ tagiem `admin` w Swaggerze. Nie wymagają osobnego prefiksu `/admin`.
 - Slugi składają się z małych liter ASCII, cyfr i segmentów oddzielonych `-`.
 - Odpowiedzi `204` nie zawierają body.
 - Błędy domenowe i dostępu używają `ErrorResponse`, np. `{"detail":"Admin only"}`.
-- Walidacja zwraca `422` i standardowy `HTTPValidationError` FastAPI z listą
+- Walidacja zwraca `400` (zamiast domyślnego `422` FastAPI) i standardowy
+  `HTTPValidationError` z listą
   `detail`, zawierającą m.in. lokalizację `loc`, opis `msg` i typ `type`.
+- Nieoczekiwany błąd serwera zwraca `500` z `{"detail":"Internal server error"}`,
+  bez szczegółów technicznych; pełny opis błędu trafia tylko do logów API.
 
 ## Review frontendu
 
@@ -178,13 +181,13 @@ tagiem `admin` w Swaggerze. Nie wymagają osobnego prefiksu `/admin`.
 - [ ] Nazwy pól i struktury request/response są zaakceptowane.
 - [ ] Stringi kwot, statusy zamówień i format dat są zaakceptowane.
 - [ ] Paginacja listy produktów oraz odczyt `X-Total-Count` są zaakceptowane.
-- [ ] Obsługa `401`, `403`, `404`, `409` i `422` jest uzgodniona.
+- [ ] Obsługa `400`, `401`, `403`, `404` i `409` jest uzgodniona.
 - [ ] Frontend potwierdził akceptację kontraktu w review zadania #13.
 
 ## Dodatkowe operacje trybu live
 
 - `POST /auth/refresh` — request `RefreshRequest`, response `SessionTokens`;
-  błędy `401`, `422`, `429`. Logowanie live również zwraca `SessionTokens`.
+  błędy `400`, `401`, `429`. Logowanie live również zwraca `SessionTokens`.
 - `POST /payments/mock/sessions` — `MockSessionRequest`, `201 PaymentRead`.
 - `POST /payments/mock/{payment_id}/complete` — `MockCompletionRequest`, `200 PaymentRead`.
 - `GET /payments/{payment_id}/status` — `200 PaymentRead`.

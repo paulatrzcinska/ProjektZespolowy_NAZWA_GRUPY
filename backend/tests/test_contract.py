@@ -118,7 +118,7 @@ def test_invalid_requests_return_validation_errors(
 ) -> None:
     response = client.request(method, f"/api/v1{path}", json=body, headers=ADMIN)
 
-    assert response.status_code == 422
+    assert response.status_code == 400
     assert any(error["loc"][-1] == field for error in response.json()["detail"])
 
 
@@ -165,7 +165,7 @@ def test_order_idempotency_key_is_optional_uuid(client: TestClient) -> None:
     )
 
     assert valid.status_code == 201
-    assert invalid.status_code == 422
+    assert invalid.status_code == 400
     assert invalid.json()["detail"][0]["loc"] == ["header", "Idempotency-Key"]
 
 
@@ -211,3 +211,5 @@ def test_openapi_documents_all_mvp_operations(client: TestClient) -> None:
     assert "password" not in schema["components"]["schemas"]["UserRead"]["properties"]
     assert "ErrorResponse" in schema["components"]["schemas"]
     assert "HTTPValidationError" in schema["components"]["schemas"]
+    assert all("422" not in operation["responses"] for operation in operations.values())
+    assert "400" in operations[("post", "/api/v1/products")]["responses"]
