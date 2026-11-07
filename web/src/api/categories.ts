@@ -2,9 +2,9 @@ import { apiFetch } from "./client";
 import type { Category } from "./types";
 import { USE_MOCK_API, mockCategories } from "../mocks/catalog";
 
-export async function fetchCategories(): Promise<Category[]> {
+export async function fetchCategories(auth = false): Promise<Category[]> {
   if (USE_MOCK_API) return mockCategories();
-  return apiFetch<Category[]>("/api/v1/categories");
+  return apiFetch<Category[]>("/api/v1/categories", { auth });
 }
 
 export type CategoryCreatePayload = {

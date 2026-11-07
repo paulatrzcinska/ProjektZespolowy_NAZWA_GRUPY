@@ -20,7 +20,7 @@ export function HomePage() {
   const [page, setPage] = useState(0);
   const categories = useQuery({
     queryKey: ["categories"],
-    queryFn: fetchCategories,
+    queryFn: () => fetchCategories(),
   });
   const products = useQuery({
     queryKey: ["products", category, search, sort, page],

@@ -1,3 +1,4 @@
+import { validateCatalogName } from "../lib/catalogValidation";
 import { Plus, Tag } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -30,14 +31,6 @@ function fromCategory(c: Category): Draft {
   return { name: c.name, slug: c.slug, description: c.description ?? "" };
 }
 
-function validateDraft(draft: Draft): string | null {
-  if (!draft.name.trim()) return "Nazwa jest wymagana.";
-  if (!draft.slug.trim()) return "Slug jest wymagany.";
-  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(draft.slug))
-    return "Slug może zawierać tylko małe litery, cyfry i myślniki (bez myślników na początku/końcu).";
-  return null;
-}
-
 export function AdminCategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -45,10 +38,13 @@ export function AdminCategoriesPage() {
   const [editingId, setEditingId] = useState<number | "new" | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const busy = saving || deletingId !== null;
   const [formError, setFormError] = useState<string | null>(null);
 
   async function refresh() {
-    const list = await categoriesApi.fetchCategories();
+    const list = await categoriesApi.fetchCategories(true);
     setCategories(list);
   }
 
@@ -58,7 +54,7 @@ export function AdminCategoriesPage() {
     setError(null);
     (async () => {
       try {
-        const list = await categoriesApi.fetchCategories();
+        const list = await categoriesApi.fetchCategories(true);
         if (!cancelled) setCategories(list);
       } catch (e) {
         if (!cancelled) {
@@ -75,6 +71,8 @@ export function AdminCategoriesPage() {
   }, []);
 
   function startNew() {
+    setSuccess(null);
+    setError(null);
     setEditingId("new");
     setDraft(emptyDraft());
     setFormError(null);
@@ -93,8 +91,10 @@ export function AdminCategoriesPage() {
   }
 
   async function onSave() {
-    if (!draft) return;
-    const validationError = validateDraft(draft);
+    if (!draft || busy) return;
+    setSuccess(null);
+    setError(null);
+    const validationError = validateCatalogName(draft.name, draft.slug, 200);
     if (validationError) {
       setFormError(validationError);
       return;
@@ -119,7 +119,9 @@ export function AdminCategoriesPage() {
         await categoriesApi.updateCategory(editingId, payload);
       }
       cancelEdit();
-      await refresh();
+      setSuccess("Zapisano kategorię.");
+      try { await refresh(); }
+      catch { setError("Zmiana została zapisana, ale nie udało się odświeżyć listy. Odśwież stronę."); }
     } catch (e) {
       if (e instanceof ApiError) setFormError(e.message);
       else setFormError("Zapis nie powiódł się.");
@@ -129,16 +131,20 @@ export function AdminCategoriesPage() {
   }
 
   async function onDelete(id: number, name: string) {
-    if (!window.confirm(`Usunąć kategorię „${name}"?`)) return;
+    if (busy || !window.confirm(`Usunąć kategorię „${name}"?`)) return;
+    setDeletingId(id);
+    setSuccess(null);
     setError(null);
     try {
       await categoriesApi.deleteCategory(id);
       if (editingId === id) cancelEdit();
-      await refresh();
+      setSuccess("Usunięto kategorię.");
+      try { await refresh(); }
+      catch { setError("Kategoria została usunięta, ale nie udało się odświeżyć listy. Odśwież stronę."); }
     } catch (e) {
       if (e instanceof ApiError) setError(e.message);
       else setError("Usuwanie nie powiodło się.");
-    }
+    } finally { setDeletingId(null); }
   }
 
   return (
@@ -169,13 +175,15 @@ export function AdminCategoriesPage() {
           >
             Zamówienia
           </Link>
-          <Button type="button" onClick={startNew} className="gap-2">
+          <Button type="button" disabled={busy || loading} onClick={startNew} className="gap-2">
             <Plus className="size-4" strokeWidth={1.75} aria-hidden />
             Nowa kategoria
           </Button>
         </div>
       </div>
 
+      {success ? <div className="mb-6"><Alert tone="success">{success}</Alert></div> : null}
+      {deletingId !== null ? <Alert>Trwa usuwanie…</Alert> : null}
       {error ? (
         <div className="mb-6">
           <Alert tone="error">{error}</Alert>
@@ -235,6 +243,7 @@ export function AdminCategoriesPage() {
                               type="button"
                               variant="ghost"
                               size="sm"
+                              disabled={busy}
                               onClick={() => startEdit(c)}
                             >
                               Edytuj
@@ -243,6 +252,7 @@ export function AdminCategoriesPage() {
                               type="button"
                               variant="danger"
                               size="sm"
+                              disabled={busy}
                               onClick={() => void onDelete(c.id, c.name)}
                             >
                               Usuń
@@ -270,7 +280,7 @@ export function AdminCategoriesPage() {
               </div>
             ) : null}
 
-            <div className="mt-6 flex flex-col gap-5">
+            <fieldset disabled={busy} className="mt-6 flex min-w-0 flex-col gap-5">
               <Input
                 label="Nazwa"
                 name="name"
@@ -317,11 +327,11 @@ export function AdminCategoriesPage() {
                 >
                   {saving ? "Zapisywanie…" : "Zapisz"}
                 </Button>
-                <Button type="button" variant="ghost" onClick={cancelEdit}>
+                <Button type="button" disabled={busy} variant="ghost" onClick={cancelEdit}>
                   Anuluj
                 </Button>
               </div>
-            </div>
+            </fieldset>
           </aside>
         ) : null}
       </div>

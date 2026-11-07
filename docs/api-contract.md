@@ -53,6 +53,18 @@ wykonywać operacje dostępne dla użytkownika. `—` oznacza brak body.
 
 ## Auth
 
+W trybie live najpierw utwórz administratora przez CLI opisane w
+[lokalnej instrukcji bloku 6](blok06-local.md). Wywołaj POST `/auth/login`
+z własnym e-mailem i hasłem. Odpowiedź ma postać:
+
+```json
+{"access_token":"<JWT access>","refresh_token":"<JWT refresh>","token_type":"bearer","expires_in":1800}
+```
+
+To struktura przykładu, nie prawdziwe tokeny. Wartość `expires_in` zależy od
+konfiguracji. W Authorize użyj otrzymanego access tokena; tokeny `example-*`
+z wcześniejszej sekcji działają wyłącznie w trybie kontraktowym.
+
 | Metoda | Ścieżka | Dostęp | Request | Sukces / response | Pozostałe kody |
 | --- | --- | --- | --- | --- | --- |
 | POST | `/auth/register` | publiczny | `UserCreate` | `201 UserRead` | 400, 409 |
@@ -77,7 +89,7 @@ nie pozwala zmienić roli; obejmuje nazwę użytkownika i adres dostawy.
 | DELETE | `/categories/{category_id}` | admin | — | `204`, bez body | 400, 401, 403, 404, 409 |
 
 Kategoria zawiera `name`, unikalny `slug` i opcjonalny `description`.
-Usunięcie kategorii z produktami docelowo daje `409`.
+Usunięcie kategorii z produktami daje `409`.
 
 ## Produkty
 
