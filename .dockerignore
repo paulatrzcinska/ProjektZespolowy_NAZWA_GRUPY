@@ -1,0 +1,13 @@
+# Kontekst budowania obrazu backendu (backend/Dockerfile) to katalog główny repo.
+# Do obrazu trafiają tylko backend/app, backend/pyproject.toml, backend/uv.lock oraz db/alembic*.
+*
+!backend/app
+!backend/entrypoint.sh
+!backend/pyproject.toml
+!backend/uv.lock
+!db/alembic.ini
+!db/alembic
+**/__pycache__
+**/*.py[cod]
+**/.env
+**/.env.*

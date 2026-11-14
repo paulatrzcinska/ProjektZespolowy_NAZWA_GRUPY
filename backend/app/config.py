@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import SecretStr
+from pydantic import SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import URL
 
@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     )
 
     app_name: str = "projekt-zespolowy-api"
+    # Build identifier (git commit) injected by the deployment; "dev" when run locally.
+    app_version: str = "dev"
     debug: bool = False
     api_v1_prefix: str = "/api/v1"
     cors_origins: str = "http://localhost:5173,http://localhost:8081"
@@ -27,6 +29,11 @@ class Settings(BaseSettings):
     migration_db_user: str = "shop_migrator"
     migration_db_password: SecretStr | None = None
     database_ssl_ca: Path | None = None
+
+    @field_validator("database_ssl_ca", mode="before")
+    @classmethod
+    def empty_ssl_ca_is_none(cls, value: object) -> object:
+        return None if value == "" else value
 
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]

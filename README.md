@@ -31,11 +31,11 @@ System obejmuje aplikację webową PWA (React), backend oparty na FastAPI i Post
 
 ## Architektura
 
-System oparty jest na architekturze trójwarstwowej. Obecnie aplikacja działa w środowisku lokalnym, natomiast docelowo planowane jest wdrożenie w chmurze AWS.
+System oparty jest na architekturze trójwarstwowej. Aplikacja działa lokalnie oraz w chmurze AWS, do której jest wdrażana automatycznie po każdej zmianie w `main` (zob. [Wdrożenie](#wdrożenie)).
 
-1. **Warstwa Web** – aplikacja PWA (React + TypeScript), obsługująca interfejs użytkownika, formularze i komunikację z REST API. Docelowo przewidziano hosting w Amazon S3 z dystrybucją przez CloudFront.
-2. **Warstwa API** – backend w Pythonie (FastAPI), odpowiedzialny za logikę biznesową, walidację danych, uwierzytelnianie JWT oraz obsługę zapytań do bazy danych.
-3. **Warstwa Database** – relacyjna baza PostgreSQL, przechowująca dane aplikacji. Migracje schematu realizowane są przez Alembic. Docelowo planowane jest wykorzystanie Amazon RDS w prywatnej podsieci VPC.
+1. **Warstwa Web** – aplikacja PWA (React + TypeScript), obsługująca interfejs użytkownika, formularze i komunikację z REST API. Hostowana w Amazon S3 z dystrybucją przez CloudFront.
+2. **Warstwa API** – backend w Pythonie (FastAPI), odpowiedzialny za logikę biznesową, walidację danych, uwierzytelnianie JWT oraz obsługę zapytań do bazy danych. W chmurze działa jako kontener ECS Fargate w podsieci prywatnej, dostępny przez CloudFront pod tym samym adresem co frontend (`/api`).
+3. **Warstwa Database** – relacyjna baza PostgreSQL, przechowująca dane aplikacji. Migracje schematu realizowane są przez Alembic. W chmurze jest to Amazon RDS w prywatnej podsieci VPC.
 
 Komunikacja pomiędzy frontendem i backendem odbywa się przez REST API. Dostęp do PostgreSQL jest realizowany wyłącznie przez backend z wykorzystaniem SQLAlchemy.
 
@@ -156,6 +156,23 @@ Workflow GitHub Actions [`.github/workflows/ci.yml`](.github/workflows/ci.yml) u
 4. **CI status** – zbiorczy status wymagany przez ochronę gałęzi `main`; scalenie jest możliwe tylko po sukcesie wszystkich jobów.
 
 Uzupełnieniem są CodeQL (analiza statyczna TypeScript i Python) oraz Dependabot (cotygodniowe aktualizacje zależności i alerty bezpieczeństwa). Opis jobów, zasady ochrony gałęzi i lokalne uruchomienie skanerów: [docs/ci.md](docs/ci.md).
+
+## Wdrożenie
+
+Wdrożenie do AWS jest w pełni automatyczne (Continuous Deployment). Po scaleniu
+zmiany do `main` i zielonym workflow CI uruchamia się workflow
+[`deploy.yml`](.github/workflows/deploy.yml):
+
+1. logowanie do AWS przez OIDC (bez kluczy dostępowych w repozytorium),
+2. równolegle: publikacja buildu frontendu do S3 i unieważnienie cache CloudFront
+   oraz budowa obrazu backendu, push do ECR, migracje bazy i aktualizacja usługi
+   ECS Fargate,
+3. healthcheck publicznego adresu: `/health` i `/version.json` muszą zwrócić
+   wdrożony commit.
+
+Infrastruktura (S3, CloudFront, ECR, ECS, NLB, rola OIDC, punkty końcowe VPC) jest
+opisana w Terraform w [`infra/terraform`](infra/terraform). Szczegóły:
+[docs/deployment.md](docs/deployment.md).
 
 ## Zespół
 
