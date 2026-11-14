@@ -104,4 +104,15 @@ Wymagania: Terraform >= 1.10, AWS CLI skonfigurowane na koncie technicznym. Kont
 
 > **Uwaga:** sieć (Blok 3) i baza RDS (Blok 5) zostały utworzone ręcznie w konsoli AWS. Kod odwzorowuje je 1:1. Przed pierwszym `terraform apply` należy zaimportować istniejące zasoby (`import`) albo usunąć ręczne zasoby, aby nie utworzyć duplikatu. Do zarządzania RDS konto `terraform-network` potrzebuje dodatkowych uprawnień (obecnie ma tylko AmazonVPCFullAccess).
 >
+> Import robi się blokami `import` generowanymi lokalnie, bez publikowania identyfikatorów zasobów w repozytorium:
+>
+> ```bash
+> cd infra/terraform
+> ./scripts/generate-imports.sh   # tylko odczyt AWS; tworzy imports.generated.tf (w .gitignore)
+> terraform init
+> terraform plan                  # import + zmiany; nie może być "destroy" ani "must be replaced"
+> ```
+>
+> Skrypt wyszukuje VPC, podsieci, tablice tras, Security Groups z regułami oraz RDS po nazwach. Jeśli podsieć jest powiązana z inną tablicą tras niż w kodzie, skrypt ostrzega i nie importuje tego powiązania.
+>
 > Przy imporcie sprawdzić też tagi: w konsoli Security Groups nie mają tagu `Name` (kolumna Name jest pusta), a kod go ustawia – `terraform plan` pokaże to jako zmianę tagów, nie odtworzenie grupy.
