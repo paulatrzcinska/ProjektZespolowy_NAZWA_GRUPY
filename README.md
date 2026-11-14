@@ -146,6 +146,17 @@ Testy kontraktowe weryfikują interfejs i zgodność z API, natomiast testy live
 
 Szczegóły przygotowania środowiska testowego i scenariuszy znajdują się w [docs/blok06-local.md](docs/blok06-local.md).
 
+## Integracja ciągła (CI)
+
+Workflow GitHub Actions [`.github/workflows/ci.yml`](.github/workflows/ci.yml) uruchamia się przy każdym pushu i pull requeście do `main`:
+
+1. **Secret scan** – Gitleaks przeszukuje historię commitów pod kątem kluczy, haseł i tokenów; wyciek zatrzymuje pipeline przed budowaniem.
+2. **Vulnerability scan** – Trivy sprawdza zależności `web/` i `backend/` (CVE), sekrety w drzewie oraz konfigurację Dockerfile i Terraform; wyniki trafiają do zakładki Security.
+3. **Build & test** – równolegle: frontend (`typecheck`, `build`, testy Playwright, obraz Nginx), backend (`uv sync --locked`, kompilacja, `pytest` na PostgreSQL 16) i infrastruktura (`terraform fmt`, `validate`).
+4. **CI status** – zbiorczy status wymagany przez ochronę gałęzi `main`; scalenie jest możliwe tylko po sukcesie wszystkich jobów.
+
+Uzupełnieniem są CodeQL (analiza statyczna TypeScript i Python) oraz Dependabot (cotygodniowe aktualizacje zależności i alerty bezpieczeństwa). Opis jobów, zasady ochrony gałęzi i lokalne uruchomienie skanerów: [docs/ci.md](docs/ci.md).
+
 ## Zespół
 
 | Rola | Osoba |
@@ -158,7 +169,8 @@ Szczegóły przygotowania środowiska testowego i scenariuszy znajdują się w [
 ## Organizacja pracy
 
 - zadania prowadzimy w GitHub Projects (tablica Kanban),
-- każda zmiana trafia do gałęzi `main` przez Pull Request z przeglądem kodu.
+- każda zmiana trafia do gałęzi `main` przez Pull Request z przeglądem kodu,
+- scalenie wymaga zielonego statusu CI (testy, skan sekretów i podatności).
 
 ## Architektura 3-tier
 

@@ -1,0 +1,210 @@
+name: CI
+
+# Pipeline runs for every push and for pull requests targeting main.
+# Order: secret scan -> vulnerability scan -> builds and tests in parallel -> status gate.
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TRIVY_IMAGE: aquasec/trivy:0.76.2
+
+jobs:
+  secret-scan:
+    name: Secret scan (Gitleaks)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Gitleaks inspects commit history, not only the current tree.
+          fetch-depth: 0
+      - name: Scan commits for leaked credentials
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_SUMMARY: "true"
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "true"
+
+  vulnerability-scan:
+    name: Vulnerability scan (Trivy)
+    runs-on: ubuntu-latest
+    needs: secret-scan
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache Trivy vulnerability database
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/trivy-cache
+          key: trivy-db-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: trivy-db-${{ runner.os }}-
+      - name: Prepare cache and output directories
+        run: mkdir -p "$RUNNER_TEMP/trivy-cache" "$RUNNER_TEMP/trivy-out"
+      - name: Full report (vulnerabilities, secrets, misconfigurations) as SARIF
+        run: >
+          docker run --rm
+          -v "$GITHUB_WORKSPACE:/repo:ro"
+          -v "$RUNNER_TEMP/trivy-cache:/root/.cache/trivy"
+          -v "$RUNNER_TEMP/trivy-out:/out"
+          "$TRIVY_IMAGE" fs /repo
+          --scanners vuln,secret,misconfig
+          --severity CRITICAL,HIGH,MEDIUM
+          --ignore-unfixed
+          --format sarif
+          --output /out/trivy-results.sarif
+          --exit-code 0
+      - name: Publish report to the Security tab (code scanning)
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: ${{ runner.temp }}/trivy-out/trivy-results.sarif
+          category: trivy
+      - name: Gate - fail on CRITICAL/HIGH vulnerabilities or secrets in the tree
+        run: >
+          docker run --rm
+          -v "$GITHUB_WORKSPACE:/repo:ro"
+          -v "$RUNNER_TEMP/trivy-cache:/root/.cache/trivy"
+          "$TRIVY_IMAGE" fs /repo
+          --scanners vuln,secret
+          --severity CRITICAL,HIGH
+          --ignore-unfixed
+          --format table
+          --exit-code 1
+      - name: Misconfiguration summary (Dockerfile, Terraform; reported, not blocking)
+        if: always()
+        run: >
+          docker run --rm
+          -v "$GITHUB_WORKSPACE:/repo:ro"
+          -v "$RUNNER_TEMP/trivy-cache:/root/.cache/trivy"
+          "$TRIVY_IMAGE" fs /repo
+          --scanners misconfig
+          --severity CRITICAL,HIGH
+          --format table
+          --exit-code 0
+
+  frontend:
+    name: Frontend build and tests (web)
+    runs-on: ubuntu-latest
+    needs: [secret-scan, vulnerability-scan]
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: web/.nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Install backend (contract API used by browser tests)
+        run: uv sync --locked --directory ../backend
+      - name: Install dependencies
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Production build (Vite + PWA)
+        run: npm run build
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: Browser and contract tests (Playwright)
+        run: npm run test:e2e
+        env:
+          CI: "true"
+      - name: Upload failure traces
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: web/test-results
+          if-no-files-found: ignore
+      - name: Build web Docker image (Nginx)
+        run: docker build --tag zdechpies-web:ci .
+
+  backend:
+    name: Backend build and tests (backend)
+    runs-on: ubuntu-latest
+    needs: [secret-scan, vulnerability-scan]
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          # Throwaway credentials for the ephemeral CI database only.
+          POSTGRES_PASSWORD: ci-local-only
+          POSTGRES_DB: shop_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d shop_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Install dependencies from the lock file
+        run: uv sync --locked
+      - name: Byte-compile application sources
+        run: uv run python -m compileall -q app
+      - name: Tests (pytest with PostgreSQL)
+        env:
+          TEST_DATABASE_URL: postgresql+asyncpg://postgres:ci-local-only@127.0.0.1:5432/shop_test
+        run: uv run pytest -q
+
+  infra:
+    name: Infrastructure validation (terraform)
+    runs-on: ubuntu-latest
+    needs: [secret-scan, vulnerability-scan]
+    defaults:
+      run:
+        working-directory: infra/terraform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.13.3"
+      - name: Formatting
+        run: terraform fmt -check -recursive -diff
+      - name: Init without backend
+        run: terraform init -backend=false -input=false
+      - name: Validate
+        run: terraform validate -no-color
+
+  ci-status:
+    # Single required status check for branch protection.
+    name: CI status
+    runs-on: ubuntu-latest
+    needs: [secret-scan, vulnerability-scan, frontend, backend, infra]
+    if: always()
+    steps:
+      - name: All jobs must succeed
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS" | jq -r 'to_entries[] | "\(.key): \(.value.result)"'
+          echo "$RESULTS" | jq -e 'all(.[]; .result == "success")' > /dev/null
