@@ -6,7 +6,7 @@
 # Rejestr obrazów - workflow CD wypycha obraz oznaczony hashem commita.
 resource "aws_ecr_repository" "api" {
   name                 = "${var.project_name}-api"
-  image_tag_mutability = "MUTABLE" # tag "latest" wskazuje aktualnie wdrożony obraz
+  image_tag_mutability = "IMMUTABLE" # tag = hash commita, raz wypchnięty nie może się zmienić
 
   image_scanning_configuration {
     scan_on_push = true
@@ -93,8 +93,8 @@ locals {
   api_secret_keys = ["DB_PASSWORD", "MIGRATION_DB_PASSWORD", "JWT_SECRET"]
 }
 
-# Pierwsza rewizja wskazuje tag "latest"; kolejne rejestruje workflow CD z obrazem
-# oznaczonym hashem commita, dlatego Terraform ignoruje późniejsze zmiany definicji.
+# Pierwsza rewizja wskazuje tag zastępczy (obraz jeszcze nie istnieje); kolejne rejestruje
+# workflow CD z obrazem oznaczonym hashem commita, dlatego Terraform ignoruje późniejsze zmiany.
 resource "aws_ecs_task_definition" "api" {
   family                   = "${var.project_name}-api"
   requires_compatibilities = ["FARGATE"]
@@ -110,7 +110,7 @@ resource "aws_ecs_task_definition" "api" {
 
   container_definitions = jsonencode([{
     name      = local.api_container_name
-    image     = "${aws_ecr_repository.api.repository_url}:latest"
+    image     = "${aws_ecr_repository.api.repository_url}:bootstrap"
     essential = true
 
     portMappings = [{

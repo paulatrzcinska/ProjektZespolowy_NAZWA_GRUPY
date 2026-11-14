@@ -30,6 +30,15 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "web" {
   }
 }
 
+# Poprzednie wersje plików zostają w buckecie - szybki powrót do wcześniejszego buildu.
+resource "aws_s3_bucket_versioning" "web" {
+  bucket = aws_s3_bucket.web.id
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+
 data "aws_iam_policy_document" "web_bucket" {
   statement {
     sid       = "AllowCloudFrontRead"

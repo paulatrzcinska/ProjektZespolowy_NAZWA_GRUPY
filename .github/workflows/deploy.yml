@@ -109,8 +109,13 @@ jobs:
           REPOSITORY: ${{ vars.ECR_REPOSITORY }}
         run: |
           image="$REGISTRY/$REPOSITORY:$DEPLOY_SHA"
-          docker build -f backend/Dockerfile -t "$image" .
-          docker push "$image"
+          # Tags are immutable: a re-run for the same commit reuses the existing image.
+          if aws ecr describe-images --repository-name "$REPOSITORY" --image-ids "imageTag=$DEPLOY_SHA" >/dev/null 2>&1; then
+            echo "Image $image already exists, skipping build"
+          else
+            docker build -f backend/Dockerfile -t "$image" .
+            docker push "$image"
+          fi
           echo "image=$image" >> "$GITHUB_OUTPUT"
       - name: Register task definition with the new image
         id: taskdef

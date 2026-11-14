@@ -19,7 +19,7 @@ flowchart LR
 | Job | Co robi | Kiedy kończy się błędem |
 | --- | --- | --- |
 | `Deploy web (S3 + CloudFront)` | `npm run build` z `VITE_APP_VERSION=<commit>`, `aws s3 sync` (pliki `assets/*` z cache na rok, reszta `no-cache`, `--delete`), unieważnienie cache CloudFront | błąd buildu, brak uprawnień, nieudana inwalidacja |
-| `Deploy app (ECS Fargate)` | `docker build` z `backend/Dockerfile`, push do ECR z tagiem = hash commita, nowa rewizja task definition (obraz + `APP_VERSION`), `update-service` i oczekiwanie na stabilność; kontener przy starcie wykonuje `alembic upgrade head` | nieudany build, błąd migracji lub health checku (ECS cofa wdrożenie, usługa nie osiąga stabilności) |
+| `Deploy app (ECS Fargate)` | `docker build` z `backend/Dockerfile`, push do ECR z tagiem = hash commita (tagi niemutowalne; ponowny run dla tego samego commita używa istniejącego obrazu), nowa rewizja task definition (obraz + `APP_VERSION`), `update-service` i oczekiwanie na stabilność; kontener przy starcie wykonuje `alembic upgrade head` | nieudany build, błąd migracji lub health checku (ECS cofa wdrożenie, usługa nie osiąga stabilności) |
 | `Live healthcheck` | `GET /health` (API) i `GET /version.json` (web) pod publicznym adresem muszą zwrócić `version` równy wdrożonemu commitowi; strona główna musi się ładować | po 30 próbach (5 min) wersja nadal nie odpowiada commitowi |
 
 Oba joby wdrożeniowe mają warunek `conclusion == success` i `event == push`, więc
@@ -79,7 +79,7 @@ flowchart LR
 ```
 
 - **Warstwa web** - build React w prywatnym buckecie S3 (brak dostępu publicznego,
-  szyfrowanie), czytanym przez CloudFront przez Origin Access Control. Funkcja
+  szyfrowanie, wersjonowanie), czytanym przez CloudFront przez Origin Access Control. Funkcja
   CloudFront `spa-rewrite` kieruje trasy aplikacji (np. `/products/3`) na
   `index.html`. Pliki `assets/*` mają hash w nazwie i cache na rok; `index.html`,
   `sw.js`, `manifest.json` i `version.json` są zawsze rewalidowane.
