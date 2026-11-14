@@ -38,9 +38,9 @@ output "public_url" {
   value       = "https://${aws_cloudfront_distribution.web.domain_name}"
 }
 
-output "github_deploy_role_arn" {
-  description = "ARN roli przyjmowanej przez GitHub Actions (AWS_DEPLOY_ROLE_ARN)"
-  value       = aws_iam_role.github_deploy.arn
+output "github_deploy_user" {
+  description = "Użytkownik IAM GitHub Actions - klucz: aws iam create-access-key --user-name <ta wartość>"
+  value       = aws_iam_user.github_deploy.name
 }
 
 output "web_bucket" {

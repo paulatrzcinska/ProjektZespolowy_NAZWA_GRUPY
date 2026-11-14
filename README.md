@@ -163,14 +163,16 @@ Wdrożenie do AWS jest w pełni automatyczne (Continuous Deployment). Po scaleni
 zmiany do `main` i zielonym workflow CI uruchamia się workflow
 [`deploy.yml`](.github/workflows/deploy.yml):
 
-1. logowanie do AWS przez OIDC (bez kluczy dostępowych w repozytorium),
+1. logowanie do AWS kluczem technicznego użytkownika IAM `pz-github-deploy`
+   (sekrety środowiska GitHub `production`, dostępne tylko dla `main`; OIDC
+   blokuje na tym koncie polityka SCP planu Free),
 2. równolegle: publikacja buildu frontendu do S3 i unieważnienie cache CloudFront
    oraz budowa obrazu backendu, push do ECR, migracje bazy i aktualizacja usługi
    ECS Fargate,
 3. healthcheck publicznego adresu: `/health` i `/version.json` muszą zwrócić
    wdrożony commit.
 
-Infrastruktura (S3, CloudFront, ECR, ECS, NLB, rola OIDC, punkty końcowe VPC) jest
+Infrastruktura (S3, CloudFront, ECR, ECS, NLB, użytkownik IAM wdrożenia, punkty końcowe VPC) jest
 opisana w Terraform w [`infra/terraform`](infra/terraform). Szczegóły:
 [docs/deployment.md](docs/deployment.md).
 

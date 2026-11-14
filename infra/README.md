@@ -11,9 +11,9 @@ infra/
     ├── web.tf           # warstwa web: bucket S3, CloudFront (OAC, funkcja SPA, origin VPC do API)
     ├── app.tf           # warstwa app: ECR, ECS Fargate, wewnętrzny NLB, rola wykonawcza, sekret, logi
     ├── endpoints.tf     # punkty końcowe VPC dla podsieci prywatnej (ECR, Logs, Secrets Manager, S3)
-    ├── deploy.tf        # OIDC GitHub Actions i rola wdrożeniowa o minimalnych uprawnieniach
+    ├── deploy.tf        # użytkownik IAM GitHub Actions o minimalnych uprawnieniach (OIDC zablokowane przez SCP)
     ├── functions/       # kod CloudFront Function (przepisywanie tras SPA)
-    ├── variables.tf     # parametry: region, zakresy IP, porty, rozmiar zadania, repozytorium GitHub
+    ├── variables.tf     # parametry: region, zakresy IP, porty, rozmiar zadania
     ├── outputs.tf       # ID sieci oraz wartości dla GitHub Actions (rola, bucket, dystrybucja, ECS)
     └── .gitignore
 ```
@@ -85,7 +85,7 @@ najpierw wyłączyć deletion protection (Modify → Apply immediately).
 | ECS Fargate `pz-api` | `private-app`, `app-sg` | kontener FastAPI, obraz z ECR `pz-api`, port 8000 tylko z `web-sg` |
 | Punkty końcowe VPC | `private-app`, `vpce-sg` | ECR, CloudWatch Logs, Secrets Manager (interfejsowe) i S3 (gateway) zamiast NAT |
 | Secrets Manager `pz/api` | – | `DB_PASSWORD`, `MIGRATION_DB_PASSWORD`, `JWT_SECRET`; wartości wpisywane ręcznie |
-| Rola IAM `pz-github-deploy` | – | przyjmowana przez GitHub Actions przez OIDC, tylko z `main` tego repozytorium |
+| Użytkownik IAM `pz-github-deploy` | – | bez konsoli; klucz w sekretach środowiska GitHub `production` (tylko `main`), uprawnienia tylko do wdrożenia |
 
 Przebieg wdrożenia i wartości do ustawień GitHuba: [docs/deployment.md](../docs/deployment.md).
 

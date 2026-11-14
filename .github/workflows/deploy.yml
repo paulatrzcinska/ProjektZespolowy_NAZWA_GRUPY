@@ -10,9 +10,11 @@ on:
     branches: ["main"]
   workflow_dispatch:
 
+# AWS access keys of the pz-github-deploy IAM user live as secrets of the
+# "production" environment, which only accepts deployments from main.
+# (OIDC is blocked on this AWS account by a Free plan service control policy.)
 permissions:
   contents: read
-  id-token: write # OIDC token exchanged for short-lived AWS credentials
 
 # One production deployment at a time; a newer run waits instead of interleaving.
 concurrency:
@@ -55,10 +57,11 @@ jobs:
           VITE_API_BASE_URL: ""
           VITE_USE_MOCK_API: "false"
           VITE_APP_VERSION: ${{ env.DEPLOY_SHA }}
-      - name: Configure AWS credentials (OIDC)
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
       - name: Upload hashed assets (cached for a year)
         run: >
@@ -94,10 +97,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ env.DEPLOY_SHA }}
-      - name: Configure AWS credentials (OIDC)
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
       - name: Login to Amazon ECR
         id: ecr
