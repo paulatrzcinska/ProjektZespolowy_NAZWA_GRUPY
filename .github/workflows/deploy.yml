@@ -1,0 +1,167 @@
+name: Deploy
+
+# Continuous deployment to AWS. Runs only after the CI workflow finished
+# successfully for a push to main (never for pull requests), so nothing reaches
+# the cloud without passing the tests and security scans first.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write # OIDC token exchanged for short-lived AWS credentials
+
+# One production deployment at a time; a newer run waits instead of interleaving.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  # Commit that passed CI (workflow_run) or the current head (manual run).
+  DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  PUBLIC_URL: ${{ vars.PUBLIC_URL }}
+
+jobs:
+  deploy-web:
+    name: Deploy web (S3 + CloudFront)
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    environment:
+      name: production
+      url: ${{ vars.PUBLIC_URL }}
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: web/.nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Production build (same-origin API, version = commit)
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: ""
+          VITE_USE_MOCK_API: "false"
+          VITE_APP_VERSION: ${{ env.DEPLOY_SHA }}
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Upload hashed assets (cached for a year)
+        run: >
+          aws s3 sync dist/assets "s3://${{ vars.WEB_BUCKET }}/assets"
+          --cache-control "public, max-age=31536000, immutable"
+      - name: Upload entry files (always revalidated) and remove stale ones
+        run: >
+          aws s3 sync dist "s3://${{ vars.WEB_BUCKET }}"
+          --exclude "assets/*"
+          --cache-control "no-cache"
+          --delete
+      - name: Invalidate CloudFront cache
+        run: |
+          id=$(aws cloudfront create-invalidation \
+            --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" \
+            --paths "/*" --query Invalidation.Id --output text)
+          aws cloudfront wait invalidation-completed \
+            --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" --id "$id"
+
+  deploy-app:
+    name: Deploy app (ECS Fargate)
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    environment:
+      name: production
+      url: ${{ vars.PUBLIC_URL }}
+    env:
+      ECS_CLUSTER: ${{ vars.ECS_CLUSTER }}
+      ECS_SERVICE: ${{ vars.ECS_SERVICE }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+      - name: Build and push backend image
+        id: image
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+        run: |
+          image="$REGISTRY/$REPOSITORY:$DEPLOY_SHA"
+          docker build -f backend/Dockerfile -t "$image" .
+          docker push "$image"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+      - name: Register task definition with the new image
+        id: taskdef
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+        run: |
+          # Copy the running revision, swap the image and APP_VERSION, drop read-only fields.
+          current=$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE" \
+            --query 'services[0].taskDefinition' --output text)
+          aws ecs describe-task-definition --task-definition "$current" --query taskDefinition \
+            | jq --arg image "$IMAGE" --arg sha "$DEPLOY_SHA" '
+                del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                    .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)
+                | .containerDefinitions[0].image = $image
+                | .containerDefinitions[0].environment |=
+                    (map(select(.name != "APP_VERSION")) + [{name: "APP_VERSION", value: $sha}])' \
+            > task-definition.json
+          arn=$(aws ecs register-task-definition --cli-input-json file://task-definition.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "arn=$arn" >> "$GITHUB_OUTPUT"
+      - name: Roll out the new revision (migrations run at container start)
+        run: |
+          aws ecs update-service --cluster "$ECS_CLUSTER" --service "$ECS_SERVICE" \
+            --task-definition "${{ steps.taskdef.outputs.arn }}" --query service.taskDefinition --output text
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE"
+
+  healthcheck:
+    name: Live healthcheck
+    runs-on: ubuntu-latest
+    needs: [deploy-web, deploy-app]
+    steps:
+      - name: Public URL serves the deployed commit
+        run: |
+          check() { # $1 = path; the JSON "version" field must equal the deployed commit
+            for attempt in $(seq 1 30); do
+              version=$(curl -fsS --max-time 10 -H "Cache-Control: no-cache" "$PUBLIC_URL$1" \
+                | jq -r .version 2>/dev/null || true)
+              if [ "$version" = "$DEPLOY_SHA" ]; then
+                echo "$1 -> $version"
+                return 0
+              fi
+              echo "attempt $attempt: $1 returned '${version:-<none>}', waiting for $DEPLOY_SHA"
+              sleep 10
+            done
+            echo "::error::$PUBLIC_URL$1 did not report version $DEPLOY_SHA"
+            return 1
+          }
+          check /health
+          check /version.json
+          curl -fsS --max-time 10 "$PUBLIC_URL/" | grep -q '<div id="root">'
+          {
+            echo "### Live: $PUBLIC_URL"
+            echo "- deployed commit: \`$DEPLOY_SHA\` (confirmed by /health and /version.json)"
+          } >> "$GITHUB_STEP_SUMMARY"

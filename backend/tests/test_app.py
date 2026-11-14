@@ -6,7 +6,27 @@ def test_health(client: TestClient) -> None:
     response = client.get("/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok"}
+    assert response.json() == {"status": "ok", "version": "dev"}
+
+
+def test_health_reports_deployed_version(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("API_MODE", "contract")
+    monkeypatch.setenv("APP_VERSION", "3f2a9c1d")
+    from app.config import get_settings
+    from app.core.settings import get_runtime_settings
+    from app.main import create_app
+
+    get_runtime_settings.cache_clear()
+    get_settings.cache_clear()
+    try:
+        with TestClient(create_app()) as client:
+            response = client.get("/health")
+    finally:
+        get_runtime_settings.cache_clear()
+        get_settings.cache_clear()
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "version": "3f2a9c1d"}
 
 
 def test_unhandled_error_returns_json_500(

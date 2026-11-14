@@ -6,10 +6,15 @@ Konfiguracja infrastruktury AWS projektu.
 
 ```
 infra/
-└── terraform/        # kod IaC sieci (Terraform)
-    ├── main.tf       # dostawca AWS, zdalny stan, VPC, podsieci, routing, Security Groups
-    ├── variables.tf  # parametry: region, zakresy IP, porty
-    ├── outputs.tf    # ID VPC, podsieci, IGW i Security Groups
+└── terraform/           # kod IaC (Terraform)
+    ├── main.tf          # dostawca AWS, zdalny stan, VPC, podsieci, routing, Security Groups, RDS
+    ├── web.tf           # warstwa web: bucket S3, CloudFront (OAC, funkcja SPA, origin VPC do API)
+    ├── app.tf           # warstwa app: ECR, ECS Fargate, wewnętrzny NLB, rola wykonawcza, sekret, logi
+    ├── endpoints.tf     # punkty końcowe VPC dla podsieci prywatnej (ECR, Logs, Secrets Manager, S3)
+    ├── deploy.tf        # OIDC GitHub Actions i rola wdrożeniowa o minimalnych uprawnieniach
+    ├── functions/       # kod CloudFront Function (przepisywanie tras SPA)
+    ├── variables.tf     # parametry: region, zakresy IP, porty, rozmiar zadania, repozytorium GitHub
+    ├── outputs.tf       # ID sieci oraz wartości dla GitHub Actions (rola, bucket, dystrybucja, ECS)
     └── .gitignore
 ```
 
@@ -71,6 +76,19 @@ z kredytów konta. Gdy baza nie jest potrzebna: Actions → **Stop temporarily**
 (AWS uruchamia ją automatycznie po 7 dniach). Przed usunięciem bazy trzeba
 najpierw wyłączyć deletion protection (Modify → Apply immediately).
 
+## Warstwy web i app (wdrożenie CD)
+
+| Zasób | Umiejscowienie | Rola |
+|---|---|---|
+| S3 `pz-web-<konto>` + CloudFront | poza VPC | build frontendu; dystrybucja kieruje `/api/*`, `/health`, `/docs`, `/openapi.json` do API |
+| NLB `pz-api-nlb` (wewnętrzny) | `public-web`, `web-sg` | wejście do API dla CloudFront (origin VPC), bez publicznego IP |
+| ECS Fargate `pz-api` | `private-app`, `app-sg` | kontener FastAPI, obraz z ECR `pz-api`, port 8000 tylko z `web-sg` |
+| Punkty końcowe VPC | `private-app`, `vpce-sg` | ECR, CloudWatch Logs, Secrets Manager (interfejsowe) i S3 (gateway) zamiast NAT |
+| Secrets Manager `pz/api` | – | `DB_PASSWORD`, `MIGRATION_DB_PASSWORD`, `JWT_SECRET`; wartości wpisywane ręcznie |
+| Rola IAM `pz-github-deploy` | – | przyjmowana przez GitHub Actions przez OIDC, tylko z `main` tego repozytorium |
+
+Przebieg wdrożenia i wartości do ustawień GitHuba: [docs/deployment.md](../docs/deployment.md).
+
 ## Terraform
 
 Stan przechowywany jest zdalnie w S3 (bucket `projekt-zespolowy-nazwa-grupy-tfstate`) z blokadą `use_lockfile`, co zapobiega konfliktom przy pracy zespołowej.
@@ -82,7 +100,7 @@ terraform plan
 terraform apply
 ```
 
-Wymagania: Terraform >= 1.10, AWS CLI skonfigurowane na koncie technicznym `terraform-network` (uprawnienia ograniczone do VPC i pliku stanu w S3). Kluczy dostępowych nie umieszczamy w repozytorium.
+Wymagania: Terraform >= 1.10, AWS CLI skonfigurowane na koncie technicznym. Konto `terraform-network` ma uprawnienia tylko do VPC i pliku stanu w S3; zasoby wdrożenia (IAM, S3, CloudFront, ECR, ECS, ELB, Logs, Secrets Manager) wymagają szerszych uprawnień. Kluczy dostępowych nie umieszczamy w repozytorium.
 
 > **Uwaga:** sieć (Blok 3) i baza RDS (Blok 5) zostały utworzone ręcznie w konsoli AWS. Kod odwzorowuje je 1:1. Przed pierwszym `terraform apply` należy zaimportować istniejące zasoby (`import`) albo usunąć ręczne zasoby, aby nie utworzyć duplikatu. Do zarządzania RDS konto `terraform-network` potrzebuje dodatkowych uprawnień (obecnie ma tylko AmazonVPCFullAccess).
 >

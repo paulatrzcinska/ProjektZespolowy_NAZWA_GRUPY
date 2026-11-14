@@ -5,6 +5,9 @@ import { useAuth } from "../../auth/AuthContext";
 import { useCart } from "../../hooks/useCart";
 import { cn } from "../../lib/cn";
 
+/** Identyfikator buildu ustawiany przy wdrożeniu (hash commita); lokalnie "dev". */
+const APP_VERSION = import.meta.env.VITE_APP_VERSION || "dev";
+
 export function AppLayout() {
   const { user } = useAuth();
   const { cart } = useCart();
@@ -112,7 +115,10 @@ export function AppLayout() {
             Akcesoria, które psy kochają, a opiekunowie doceniają.
           </p>
           <p className="text-xs font-medium uppercase tracking-[0.12em] text-stone-400">
-            Z Dech Pies · 2026
+            Z Dech Pies · 2026 ·{" "}
+            <span data-testid="app-version" title={APP_VERSION}>
+              wersja {APP_VERSION.slice(0, 7)}
+            </span>
           </p>
         </div>
       </footer>

@@ -73,3 +73,33 @@ variable "db_port" {
   type        = number
   default     = 5432
 }
+
+variable "github_repository" {
+  description = "Repozytorium GitHub (owner/nazwa), któremu rola OIDC pozwala wdrażać"
+  type        = string
+  default     = "paulatrzcinska/ProjektZespolowy_NAZWA_GRUPY"
+}
+
+variable "app_cpu" {
+  description = "CPU zadania Fargate backendu (jednostki: 1024 = 1 vCPU)"
+  type        = number
+  default     = 256
+}
+
+variable "app_memory" {
+  description = "Pamięć zadania Fargate backendu w MiB"
+  type        = number
+  default     = 512
+}
+
+variable "app_desired_count" {
+  description = "Liczba równolegle działających kontenerów backendu"
+  type        = number
+  default     = 1
+}
+
+variable "log_retention_days" {
+  description = "Retencja logów backendu w CloudWatch (dni)"
+  type        = number
+  default     = 14
+}
