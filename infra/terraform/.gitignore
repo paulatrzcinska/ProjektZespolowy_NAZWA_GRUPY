@@ -24,6 +24,9 @@ override.tf.json
 *_override.tf
 *_override.tf.json
 
+# Bloki import z identyfikatorami zasobów (scripts/generate-imports.sh)
+imports.generated.tf
+
 # Lokalna konfiguracja CLI
 .terraformrc
 terraform.rc

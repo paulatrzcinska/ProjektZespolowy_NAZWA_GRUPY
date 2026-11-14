@@ -225,4 +225,10 @@ resource "aws_db_instance" "main" {
   database_insights_mode                = "standard"
   performance_insights_enabled          = true
   performance_insights_retention_period = 7 # bezpłatne
+
+  lifecycle {
+    # Wersję minor podnosi AWS (auto_minor_version_upgrade), np. 16.9 -> 16.10.
+    # Bez tego Terraform próbowałby "cofnąć" bazę do wartości z kodu ("16").
+    ignore_changes = [engine_version]
+  }
 }

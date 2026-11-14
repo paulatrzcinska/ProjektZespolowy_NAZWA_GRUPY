@@ -11,9 +11,9 @@ infra/
     ├── web.tf           # warstwa web: bucket S3, CloudFront (OAC, funkcja SPA, origin VPC do API)
     ├── app.tf           # warstwa app: ECR, ECS Fargate, wewnętrzny NLB, rola wykonawcza, sekret, logi
     ├── endpoints.tf     # punkty końcowe VPC dla podsieci prywatnej (ECR, Logs, Secrets Manager, S3)
-    ├── deploy.tf        # OIDC GitHub Actions i rola wdrożeniowa o minimalnych uprawnieniach
+    ├── deploy.tf        # użytkownik IAM GitHub Actions o minimalnych uprawnieniach (OIDC zablokowane przez SCP)
     ├── functions/       # kod CloudFront Function (przepisywanie tras SPA)
-    ├── variables.tf     # parametry: region, zakresy IP, porty, rozmiar zadania, repozytorium GitHub
+    ├── variables.tf     # parametry: region, zakresy IP, porty, rozmiar zadania
     ├── outputs.tf       # ID sieci oraz wartości dla GitHub Actions (rola, bucket, dystrybucja, ECS)
     └── .gitignore
 ```
@@ -85,7 +85,7 @@ najpierw wyłączyć deletion protection (Modify → Apply immediately).
 | ECS Fargate `pz-api` | `private-app`, `app-sg` | kontener FastAPI, obraz z ECR `pz-api`, port 8000 tylko z `web-sg` |
 | Punkty końcowe VPC | `private-app`, `vpce-sg` | ECR, CloudWatch Logs, Secrets Manager (interfejsowe) i S3 (gateway) zamiast NAT |
 | Secrets Manager `pz/api` | – | `DB_PASSWORD`, `MIGRATION_DB_PASSWORD`, `JWT_SECRET`; wartości wpisywane ręcznie |
-| Rola IAM `pz-github-deploy` | – | przyjmowana przez GitHub Actions przez OIDC, tylko z `main` tego repozytorium |
+| Użytkownik IAM `pz-github-deploy` | – | bez konsoli; klucz w sekretach środowiska GitHub `production` (tylko `main`), uprawnienia tylko do wdrożenia |
 
 Przebieg wdrożenia i wartości do ustawień GitHuba: [docs/deployment.md](../docs/deployment.md).
 
@@ -103,5 +103,16 @@ terraform apply
 Wymagania: Terraform >= 1.10, AWS CLI skonfigurowane na koncie technicznym. Konto `terraform-network` ma uprawnienia tylko do VPC i pliku stanu w S3; zasoby wdrożenia (IAM, S3, CloudFront, ECR, ECS, ELB, Logs, Secrets Manager) wymagają szerszych uprawnień. Kluczy dostępowych nie umieszczamy w repozytorium.
 
 > **Uwaga:** sieć (Blok 3) i baza RDS (Blok 5) zostały utworzone ręcznie w konsoli AWS. Kod odwzorowuje je 1:1. Przed pierwszym `terraform apply` należy zaimportować istniejące zasoby (`import`) albo usunąć ręczne zasoby, aby nie utworzyć duplikatu. Do zarządzania RDS konto `terraform-network` potrzebuje dodatkowych uprawnień (obecnie ma tylko AmazonVPCFullAccess).
+>
+> Import robi się blokami `import` generowanymi lokalnie, bez publikowania identyfikatorów zasobów w repozytorium:
+>
+> ```bash
+> cd infra/terraform
+> ./scripts/generate-imports.sh   # tylko odczyt AWS; tworzy imports.generated.tf (w .gitignore)
+> terraform init
+> terraform plan                  # import + zmiany; nie może być "destroy" ani "must be replaced"
+> ```
+>
+> Skrypt wyszukuje VPC, podsieci, tablice tras, Security Groups z regułami oraz RDS po nazwach. Jeśli podsieć jest powiązana z inną tablicą tras niż w kodzie, skrypt ostrzega i nie importuje tego powiązania.
 >
 > Przy imporcie sprawdzić też tagi: w konsoli Security Groups nie mają tagu `Name` (kolumna Name jest pusta), a kod go ustawia – `terraform plan` pokaże to jako zmianę tagów, nie odtworzenie grupy.

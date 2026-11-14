@@ -27,38 +27,40 @@ pull requesty i nieudane CI nie wdrażają niczego. Wdrożenia są serializowane
 (`concurrency: deploy-production`). Ręczne uruchomienie (`workflow_dispatch`)
 wdraża aktualny `main`.
 
-## Uwierzytelnienie GitHub → AWS (OIDC)
+## Uwierzytelnienie GitHub → AWS
 
-W repozytorium ani w GitHubie nie ma kluczy dostępowych AWS. Runner GitHub
-Actions sam z siebie nie ma żadnych uprawnień w AWS; dostaje je na czas joba
-w czterech krokach:
+Docelową metodą było OIDC (krótkotrwałe tokeny bez stałych kluczy), ale na tym
+koncie jest ono niedostępne: konto działa w planie Free i polityka SCP narzucona
+przez AWS jawnie blokuje `iam:CreateOpenIDConnectProvider` (sprawdzone
+14.11.2026). Dlatego workflow loguje się kluczem dostępowym technicznego
+użytkownika IAM `pz-github-deploy` ([`infra/terraform/deploy.tf`](../infra/terraform/deploy.tf)).
 
-1. Dzięki `permissions: id-token: write` job prosi GitHub o krótkotrwały token
-   OIDC (JWT ważny kilka minut), w którym GitHub poświadcza, z jakiego
-   repozytorium, gałęzi i workflow pochodzi uruchomienie.
-2. Akcja `aws-actions/configure-aws-credentials@v4` przekazuje ten token do AWS
-   STS (`AssumeRoleWithWebIdentity`) z prośbą o przyjęcie roli `pz-github-deploy`.
-3. STS weryfikuje podpis tokenu kluczem publicznym GitHuba (zaufanie konfiguruje
-   `aws_iam_openid_connect_provider` w [`infra/terraform/deploy.tf`](../infra/terraform/deploy.tf))
-   i sprawdza politykę zaufania roli: odbiorca `aud` musi być `sts.amazonaws.com`,
-   a pole `sub` musi wskazywać to repozytorium i gałąź `main` (lub środowisko
-   `production`). Token z innego repozytorium albo innej gałęzi jest odrzucany.
-4. STS zwraca tymczasowe poświadczenia ważne do godziny; akcja wstawia je do
-   środowiska joba i używają ich kolejne kroki (`aws s3 sync`, `docker push`).
-   Po zakończeniu joba poświadczenia wygasają.
+Zabezpieczenia tego wariantu:
 
-Rola ma tylko uprawnienia potrzebne wdrożeniu: zapis do bucketu web, inwalidacja
-jednej dystrybucji, push do jednego repozytorium ECR, rejestracja task definition
-i aktualizacja jednej usługi ECS. W odróżnieniu od stałych kluczy użytkownika IAM
-w Secrets nie ma tu żadnego sekretu, który mógłby wyciec lub wymagać rotacji.
+- **Klucz tylko w sekretach środowiska `production`** (Settings → Environments →
+  production → Environment secrets: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`),
+  nigdy w kodzie ani w pliku `.yml`. Sekrety środowiska może ustawić tylko
+  właściciel repozytorium.
+- **Środowisko `production` przyjmuje wdrożenia wyłącznie z gałęzi `main`**
+  (Deployment branches and tags → Selected: `main`). Workflow uruchomiony z innej
+  gałęzi nie dostanie klucza, a do `main` kod trafia tylko przez PR z akceptacją
+  i zielonym `CI status`.
+- **Minimalne uprawnienia użytkownika**: zapis do bucketu web, inwalidacja jednej
+  dystrybucji, push do jednego repozytorium ECR, rejestracja task definition
+  i aktualizacja jednej usługi ECS. Użytkownik nie ma dostępu do konsoli.
+- **Klucza nie tworzy Terraform**, bo trafiłby jawnie do pliku stanu. Generuje się
+  go ręcznie (`aws iam create-access-key --user-name pz-github-deploy`) i od razu
+  wpisuje do sekretów. Rotacja: utworzyć nowy klucz, podmienić sekrety, usunąć
+  stary (`aws iam delete-access-key`).
 
 Identyfikatory zasobów workflow czyta z **Variables** repozytorium
-(Settings → Secrets and variables → Actions → Variables); wartości daje `terraform output`:
+(Settings → Secrets and variables → Actions → Variables); wartości daje `terraform output`.
+To nie są sekrety, więc mogą być zmiennymi repozytorium (widzi je też job
+healthcheck, który nie używa środowiska `production`):
 
 | Variable | Output Terraform |
 | --- | --- |
 | `AWS_REGION` | `eu-north-1` |
-| `AWS_DEPLOY_ROLE_ARN` | `github_deploy_role_arn` |
 | `WEB_BUCKET` | `web_bucket` |
 | `CLOUDFRONT_DISTRIBUTION_ID` | `cloudfront_distribution_id` |
 | `ECR_REPOSITORY` | `ecr_repository` |
@@ -120,13 +122,18 @@ Puste `DATABASE_SSL_CA` wyłącza TLS do bazy (lokalny PostgreSQL bez certyfikat
 ## Pierwsze uruchomienie (jednorazowo, ręcznie)
 
 1. `terraform apply` w `infra/terraform` kontem z uprawnieniami do IAM, S3,
-   CloudFront, ECR, ECS, ELB, Logs, Secrets Manager i VPC.
+   CloudFront, ECR, ECS, ELB, Logs, Secrets Manager i VPC (np. AWS CloudShell).
+   Sieć i RDS utworzono ręcznie, więc najpierw import - patrz
+   [infra/README.md](../infra/README.md#terraform).
 2. Uzupełnij sekret `pz/api` (ARN w outputach) wartościami JSON
    `{"DB_PASSWORD": "...", "MIGRATION_DB_PASSWORD": "...", "JWT_SECRET": "..."}`
    i nadaj te same hasła rolom `shop_app` i `shop_migrator` w RDS
    ([`db/init/00-roles.sh`](../db/init/00-roles.sh)). Po pierwszym wdrożeniu wykonaj
    jako `shop_migrator` [`db/scripts/grant-app-permissions.sql`](../db/scripts/grant-app-permissions.sql).
-3. Wpisz outputy Terraform do Variables repozytorium i utwórz środowisko GitHub `production`.
+3. Wpisz outputy Terraform do Variables repozytorium. W środowisku GitHub
+   `production` ogranicz wdrożenia do gałęzi `main` i dodaj sekrety
+   `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` z wyniku
+   `aws iam create-access-key --user-name pz-github-deploy` (wymaga właściciela repozytorium).
 4. Pierwszy deploy: push do `main` (po zielonym CI) albo Actions → Deploy → *Run workflow*.
 
 Logi backendu: `aws logs tail /ecs/pz-api --follow`. Powrót do poprzedniej wersji:

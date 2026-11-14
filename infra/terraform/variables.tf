@@ -74,12 +74,6 @@ variable "db_port" {
   default     = 5432
 }
 
-variable "github_repository" {
-  description = "Repozytorium GitHub (owner/nazwa), któremu rola OIDC pozwala wdrażać"
-  type        = string
-  default     = "paulatrzcinska/ProjektZespolowy_NAZWA_GRUPY"
-}
-
 variable "app_cpu" {
   description = "CPU zadania Fargate backendu (jednostki: 1024 = 1 vCPU)"
   type        = number
