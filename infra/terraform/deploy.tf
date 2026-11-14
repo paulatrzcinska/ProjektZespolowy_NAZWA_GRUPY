@@ -14,7 +14,8 @@ resource "aws_iam_user" "github_deploy" {
   name = "${var.project_name}-github-deploy"
 
   tags = {
-    Purpose = "Wdrozenie z GitHub Actions: S3/CloudFront dla web, ECR/ECS dla API"
+    # Wartości tagów IAM: tylko litery, cyfry, spacje i _ . : / = + - @ (bez przecinków).
+    Purpose = "GitHub Actions deploy: S3/CloudFront web + ECR/ECS API"
   }
 }
 
