@@ -2,7 +2,7 @@
 # Build: docker build -t zdechpies-web --build-arg VITE_USE_MOCK_API=true .
 # Run:   docker run --rm -p 8080:80 zdechpies-web
 
-FROM node:22-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
