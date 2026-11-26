@@ -6,12 +6,19 @@ export default defineConfig({
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
   workers: 2,
-  reporter: "list",
+  outputDir: "test-results/contract",
+  reporter: [
+    ["list"],
+    ["html", { outputFolder: "playwright-report/contract", open: "never" }],
+    ["junit", { outputFile: "test-results/contract-junit.xml" }],
+  ],
   use: {
+    headless: true,
     baseURL: "http://127.0.0.1:4175",
     serviceWorkers: "block",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
+    video: "retain-on-failure",
   },
   projects: [
     {

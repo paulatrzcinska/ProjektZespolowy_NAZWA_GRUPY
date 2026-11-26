@@ -1,6 +1,7 @@
 # Blok 6: lokalna integracja React → FastAPI → PostgreSQL
 
-AWS i deployment CD pozostają na później. Wszystkie poniższe testy wykonuje się lokalnie.
+Poniżej opisano lokalne testy integracji. Automatyczny zakup jest też wykonywany
+w CI; aktualne instrukcje i raporty: [README — Testowanie](../README.md#testowanie).
 
 ## Przygotowanie
 
@@ -173,11 +174,23 @@ npm run test:e2e:live
 ```
 
 Po testach usuń zmienną z hasłem i ustawienia fazy z sesji PowerShell.
-Live nie zapisuje trace/video z żądaniami logowania. Nie wskazuj produkcyjnej bazy.
+Live nie zapisuje trace z treścią żądań logowania. Przy błędzie zapisuje screenshot
+i wideo interfejsu z zamaskowanym hasłem. Nie wskazuj produkcyjnej bazy.
 W ograniczonym Windows można użyć Vite `--configLoader runner` dla build/preview;
-nie zastępuje to typecheck. Dla przyszłego CI są lockfile npm/uv, migracje
-i osobne komendy testów. Runner musi dostarczyć bazę i sekrety testowe.
-Nie dodajemy deploymentu ani nie wykonujemy commit/push/PR/merge.
+nie zastępuje to typecheck. CI przygotowuje osobną bazę i uruchamia fazę `purchase`.
+Ta faza nie wymaga `E2E_ADMIN_EMAIL` ani `E2E_ADMIN_PASSWORD`; tworzy własnego
+klienta przez UI, używa produktu `Pufa welurowa DOT` z seeda i pozostawia zamówienie.
+W PowerShell, z `web`, po przygotowaniu dedykowanej bazy, migracji i seeda:
+
+```powershell
+$env:E2E_ALLOW_WRITES = 'local-test-database'
+$env:E2E_PHASE = 'purchase'
+npm run test:e2e:live
+npx playwright show-report playwright-report/live
+```
+
+Ustawienia `DB_*` oraz `JWT_SECRET` muszą wskazywać przygotowane środowisko testowe
+(zmienne środowiskowe albo `backend/.env` i `.env.runtime`).
 
 ## Zrzuty i materiał do indywidualnego sprawozdania
 

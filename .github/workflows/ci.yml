@@ -125,16 +125,20 @@ jobs:
         run: npm run build
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
-      - name: Browser and contract tests (Playwright)
+      - name: Browser and contract tests (Playwright, headless)
         run: npm run test:e2e
         env:
           CI: "true"
-      - name: Upload failure traces
+      - name: Upload browser reports and failure artifacts
         uses: actions/upload-artifact@v4
-        if: failure()
+        if: always()
         with:
-          name: playwright-traces
-          path: web/test-results
+          name: playwright-contract-results
+          path: |
+            web/playwright-report/contract
+            web/test-results/contract-junit.xml
+            web/test-results/contract
+          retention-days: 14
           if-no-files-found: ignore
       - name: Build web Docker image (Nginx)
         run: docker build --tag zdechpies-web:ci .
@@ -174,7 +178,91 @@ jobs:
       - name: Tests (pytest with PostgreSQL)
         env:
           TEST_DATABASE_URL: postgresql+asyncpg://postgres:ci-local-only@127.0.0.1:5432/shop_test
-        run: uv run pytest -q
+        run: uv run pytest -q --junitxml=test-results/pytest.xml
+      - name: Upload API and database test report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pytest-results
+          path: backend/test-results/pytest.xml
+          retention-days: 14
+          if-no-files-found: ignore
+
+  e2e:
+    name: Customer purchase E2E (headless, live API)
+    runs-on: ubuntu-latest
+    needs: [secret-scan, vulnerability-scan]
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    env:
+      CI: "true"
+      API_MODE: live
+      APP_ENV: test
+      DB_HOST: 127.0.0.1
+      DB_PORT: "5432"
+      DB_NAME: shop_e2e_test
+      DB_USER: postgres
+      DB_PASSWORD: ci-local-only
+      MIGRATION_DB_USER: postgres
+      MIGRATION_DB_PASSWORD: ci-local-only
+      # Test-only signing key for an isolated, ephemeral database and API.
+      JWT_SECRET: test-only-secret-test-only-secret-test-only-secret
+      AUTH_RATE_LIMIT: "1000"
+      CREATE_DEFAULT_ADMIN: "false"
+      PAYMENTS_MOCK: "false"
+      E2E_PHASE: purchase
+      E2E_ALLOW_WRITES: local-test-database
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-local-only
+          POSTGRES_DB: shop_e2e_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d shop_e2e_test"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: web/.nvmrc
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Install backend dependencies
+        run: uv sync --locked --directory ../backend
+      - name: Migrate and seed the dedicated E2E database
+        working-directory: backend
+        run: |
+          uv run alembic -c ../db/alembic.ini upgrade head
+          uv run python -m app.scripts.seed
+      - name: Install frontend dependencies
+        run: npm ci
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: Customer purchase through React, FastAPI and PostgreSQL (headless)
+        run: npm run test:e2e:live
+      - name: Upload E2E reports and failure artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-live-results
+          path: |
+            web/playwright-report/live
+            web/test-results/live-junit.xml
+            web/test-results/live
+          retention-days: 14
+          if-no-files-found: ignore
 
   infra:
     name: Infrastructure validation (terraform)
@@ -199,7 +287,7 @@ jobs:
     # Single required status check for branch protection.
     name: CI status
     runs-on: ubuntu-latest
-    needs: [secret-scan, vulnerability-scan, frontend, backend, infra]
+    needs: [secret-scan, vulnerability-scan, frontend, backend, e2e, infra]
     if: always()
     steps:
       - name: All jobs must succeed

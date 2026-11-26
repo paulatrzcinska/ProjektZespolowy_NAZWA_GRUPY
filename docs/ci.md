@@ -12,9 +12,11 @@ flowchart LR
     S --> V[Vulnerability scan<br/>Trivy]
     V --> F[Frontend<br/>typecheck, build, Playwright, Docker]
     V --> B[Backend<br/>uv sync, compileall, pytest + PostgreSQL]
+    V --> E[E2E headless<br/>zakup przez React, FastAPI, PostgreSQL]
     V --> I[Infrastructure<br/>terraform fmt, validate]
     F --> G[CI status]
     B --> G
+    E --> G
     I --> G
 ```
 
@@ -22,8 +24,9 @@ flowchart LR
 | --- | --- | --- |
 | `Secret scan (Gitleaks)` | historia commitów pod kątem kluczy, haseł i tokenów | dowolny wykryty sekret |
 | `Vulnerability scan (Trivy)` | `backend/uv.lock`, `web/package-lock.json`, sekrety w drzewie, konfiguracja Dockerfile i Terraform | podatność CRITICAL/HIGH z dostępną poprawką lub sekret; błędy konfiguracji są tylko raportowane |
-| `Frontend build and tests (web)` | `npm ci`, `npm run typecheck`, `npm run build`, 20 testów Playwright na kontraktowym API, budowa obrazu Nginx | błąd kompilacji TypeScript, budowania Vite, testu lub obrazu |
+| `Frontend build and tests (web)` | `npm ci`, `npm run typecheck`, `npm run build`, testy Playwright headless na kontraktowym API, budowa obrazu Nginx | błąd kompilacji TypeScript, budowania Vite, testu lub obrazu |
 | `Backend build and tests (backend)` | `uv sync --locked`, kompilacja modułów, `pytest` na PostgreSQL 16 (kontener usługi, baza `shop_test`) | niezgodny lock, błąd składni, nieudany test |
+| `Customer purchase E2E (headless, live API)` | Osobny PostgreSQL 16 (`shop_e2e_test`), migracje, seed, Playwright: rejestracja → produkt → koszyk → checkout → zapisane zamówienie i historia | błąd przygotowania środowiska albo ścieżki zakupu; bez ponawiania testu |
 | `Infrastructure validation (terraform)` | `terraform fmt -check`, `init -backend=false`, `validate` | niesformatowany lub niepoprawny kod HCL |
 | `CI status` | agreguje wyniki powyższych | którykolwiek job nie zakończył się sukcesem |
 
@@ -36,6 +39,34 @@ Osobny workflow [`codeql.yml`](../.github/workflows/codeql.yml) analizuje
 statycznie kod TypeScript i Python (CodeQL, zestaw `security-and-quality`)
 przy zmianach w `main` oraz co tydzień. Raporty Trivy i CodeQL trafiają do
 zakładki **Security → Code scanning**.
+
+## Raporty i artefakty testów
+
+Po każdym uruchomieniu testów kroki `Upload …` z warunkiem `always()` zapisują
+raporty także w razie błędu. Retencja wynosi 14 dni:
+
+| Artefakt w Actions → CI → Artifacts | Zawartość |
+| --- | --- |
+| `pytest-results` | JUnit `pytest.xml` z testów API i PostgreSQL |
+| `playwright-contract-results` | HTML, JUnit, a przy błędzie screenshot PNG, wideo WebM i trace ZIP |
+| `playwright-live-results` | HTML, JUnit, a przy błędzie screenshot PNG i wideo WebM |
+
+Jeżeli przygotowanie środowiska przerwie job przed uruchomieniem testów, raport
+może nie powstać — przyczyna jest wtedy w logu nieudanego kroku. Zwykły sukces
+nie zachowuje automatycznych screenshotów, wideo ani trace. Test katalogu zapisuje
+też własny poglądowy screenshot. Przy ponowieniu nieudanego testu kontraktowego
+materiały z pierwszej próby pozostają dostępne, a wynik jest oznaczony `flaky`.
+Trace live jest wyłączony, ponieważ zawiera treść żądań logowania.
+
+Po pobraniu i rozpakowaniu artefaktu otwórz katalog zawierający `index.html`
+poleceniem `npx playwright show-report <katalog>` w środowisku z zależnościami
+`web/`. Raport pokazuje nieudany krok, oczekiwanie, stack trace i załączniki.
+XML JUnit pozwala przetwarzać wyniki maszynowo; log kroku podaje również liczbę
+testów `passed`, `failed` i `skipped`. `CI status` wymaga sukcesu także nowego
+jobu E2E; błąd testów blokuje automatyczne CD.
+
+Komplet poleceń lokalnych (w tym tymczasowa baza Docker i odczyt raportów):
+[README — Testowanie](../README.md#testowanie).
 
 [`.github/dependabot.yml`](../.github/dependabot.yml) co tydzień proponuje
 aktualizacje zależności npm (`web/`), uv (`backend/`), obrazów bazowych

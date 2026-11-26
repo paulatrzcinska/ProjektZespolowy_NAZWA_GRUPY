@@ -62,8 +62,13 @@ def test_example_responses_match_contract(
     if model is None:
         assert response.content == b""
     else:
+        assert response.headers["content-type"] == "application/json"
         TypeAdapter(model).validate_json(response.content)
         assert "password" not in response.json()
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert response.headers["x-frame-options"] == "DENY"
+    if headers or path.startswith("/auth/"):
+        assert response.headers["cache-control"] == "no-store"
 
 
 @pytest.mark.parametrize(
@@ -76,7 +81,9 @@ def test_protected_operations_require_bearer_token(
     response = client.request(method, f"/api/v1{path}", json=body)
 
     assert response.status_code == 401
+    assert response.headers["content-type"] == "application/json"
     assert response.headers["www-authenticate"] == "Bearer"
+    assert response.headers["x-content-type-options"] == "nosniff"
     assert isinstance(response.json()["detail"], str)
 
 
@@ -90,6 +97,8 @@ def test_admin_operations_reject_user_token(
     response = client.request(method, f"/api/v1{path}", json=body, headers=USER)
 
     assert response.status_code == 403
+    assert response.headers["content-type"] == "application/json"
+    assert response.headers["cache-control"] == "no-store"
     assert response.json() == {"detail": "Admin only"}
 
 
@@ -119,6 +128,7 @@ def test_invalid_requests_return_validation_errors(
     response = client.request(method, f"/api/v1{path}", json=body, headers=ADMIN)
 
     assert response.status_code == 400
+    assert response.headers["content-type"] == "application/json"
     assert any(error["loc"][-1] == field for error in response.json()["detail"])
 
 
