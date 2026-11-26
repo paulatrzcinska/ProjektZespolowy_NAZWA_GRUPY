@@ -1,10 +1,14 @@
-# Kontrakt REST API MVP — BE-2
+# Dokumentacja REST API
 
-Status: propozycja do review frontendu. Akceptacja frontendu nie została jeszcze
-potwierdzona. Powiązane zadanie: [#13](https://github.com/paulatrzcinska/ProjektZespolowy_NAZWA_GRUPY/issues/13).
+Opis aktualnej implementacji FastAPI w trybie `API_MODE=live`.
+Schemat OpenAPI generują routery oraz modele Pydantic. Tryb kontraktowy zachowuje
+przykładowe odpowiedzi do testów interfejsu i jest opisany osobno poniżej.
 
 ## Dokumentacja i dane przykładowe
 
+- Przykładowy odczyt live: [GET /api/v1/products](https://d295uboxigcnkp.cloudfront.net/api/v1/products).
+- Live Swagger: [dokumentacja interaktywna](https://d295uboxigcnkp.cloudfront.net/docs).
+- Live OpenAPI: [schemat JSON](https://d295uboxigcnkp.cloudfront.net/openapi.json).
 - Bazowy adres lokalny: `http://localhost:8000/api/v1`.
 - Swagger UI: `http://localhost:8000/docs`.
 - OpenAPI: `http://localhost:8000/openapi.json`.
@@ -53,9 +57,9 @@ wykonywać operacje dostępne dla użytkownika. `—` oznacza brak body.
 
 ## Auth
 
-W trybie live najpierw utwórz administratora przez CLI opisane w
-[lokalnej instrukcji bloku 6](blok06-local.md). Wywołaj POST `/auth/login`
-z własnym e-mailem i hasłem. Odpowiedź ma postać:
+W trybie live zarejestruj klienta przez `POST /auth/register`. Administratora
+tworzy osobne CLI opisane w [lokalnej instrukcji](blok06-local.md).
+Następnie wywołaj `POST /auth/login` z własnym e-mailem i hasłem. Odpowiedź ma postać:
 
 ```json
 {"access_token":"<JWT access>","refresh_token":"<JWT refresh>","token_type":"bearer","expires_in":1800}
@@ -67,11 +71,12 @@ z wcześniejszej sekcji działają wyłącznie w trybie kontraktowym.
 
 | Metoda | Ścieżka | Dostęp | Request | Sukces / response | Pozostałe kody |
 | --- | --- | --- | --- | --- | --- |
-| POST | `/auth/register` | publiczny | `UserCreate` | `201 UserRead` | 400, 409 |
-| POST | `/auth/login` | publiczny | `LoginRequest` | `200 Token` | 400, 401, 403 |
+| POST | `/auth/register` | publiczny | `UserCreate` | `201 UserRead` | 400, 409, 429 |
+| POST | `/auth/login` | publiczny | `LoginRequest` | `200 SessionTokens` | 400, 401, 403, 429 |
+| POST | `/auth/refresh` | refresh token | `RefreshRequest` | `200 SessionTokens` | 400, 401, 429 |
 | GET | `/auth/me` | użytkownik | — | `200 UserRead` | 401 |
 | PATCH | `/auth/me` | użytkownik | `UserProfileUpdate` | `200 UserRead` | 400, 401 |
-| POST | `/auth/change-password` | użytkownik | `PasswordChangeRequest` | `204`, bez body | 400, 401 |
+| POST | `/auth/change-password` | użytkownik | `PasswordChangeRequest` | `204`, bez body | 400, 401, 429 |
 
 `UserCreate` zawiera e-mail, hasło (8–128 znaków) i opcjonalną nazwę użytkownika.
 `UserRead` zawiera identyfikator, e-mail, `full_name`, `is_admin` oraz opcjonalny
@@ -96,12 +101,12 @@ Usunięcie kategorii z produktami daje `409`.
 | Metoda | Ścieżka | Dostęp | Request | Sukces / response | Pozostałe kody |
 | --- | --- | --- | --- | --- | --- |
 | GET | `/products` | publiczny | query poniżej | `200 ProductListRead[]` | 400, 401, 403 |
-| GET | `/products/{product_id}` | publiczny | — | `200 ProductRead` | 400, 404 |
-| POST | `/products` | admin | `ProductCreate` | `201 ProductRead` | 400, 401, 403, 409 |
+| GET | `/products/{product_id}` | publiczny | — | `200 ProductRead` | 400, 401, 404 |
+| POST | `/products` | admin | `ProductCreate` | `201 ProductRead` | 400, 401, 403, 404, 409 |
 | PATCH | `/products/{product_id}` | admin | `ProductUpdate` | `200 ProductRead` | 400, 401, 403, 404, 409 |
 | DELETE | `/products/{product_id}` | admin | opcjonalne `hard=false` w query | `204`, bez body | 400, 401, 403, 404, 409 |
 
-| Parametr listy | Typ / domyślna wartość | Znaczenie docelowe |
+| Parametr listy | Typ / domyślna wartość | Znaczenie w trybie live |
 | --- | --- | --- |
 | `skip` | int ≥ 0, `0` | Liczba pomijanych rekordów |
 | `limit` | int 1–100, `50` | Rozmiar strony |
@@ -121,7 +126,7 @@ dodatkowo `description`.
 dwa miejsca po przecinku i 12 cyfr łącznie; stan magazynowy nie może być ujemny.
 `image_url` jest opcjonalnym adresem HTTP/HTTPS.
 
-DELETE domyślnie oznacza dezaktywację. `hard=true` docelowo żąda trwałego
+DELETE domyślnie oznacza dezaktywację. `hard=true` żąda trwałego
 usunięcia; powiązania z koszykami lub zamówieniami mogą spowodować `409`.
 
 ## Koszyk
@@ -138,19 +143,19 @@ usunięcia; powiązania z koszykami lub zamówieniami mogą spowodować `409`.
 koszyka, nie identyfikator produktu. Każda operacja zwraca pełny koszyk:
 `id`, `items`, `items_count`, `subtotal`. `items_count` to suma ilości, a nie liczba
 wierszy. Pozycja zawiera `id`, `product_id`, `quantity`, `line_total` i zagnieżdżony
-`ProductListRead`. `400` docelowo opisuje np. niewystarczający stan magazynowy.
+`ProductListRead`. `400` opisuje np. niewystarczający stan magazynowy.
 
 ## Zamówienia i administracja
 
 | Metoda | Ścieżka | Dostęp | Request | Sukces / response | Pozostałe kody |
 | --- | --- | --- | --- | --- | --- |
-| POST | `/orders` | użytkownik | `OrderCreate` | `201 OrderRead` | 400, 401, 409 |
+| POST | `/orders` | użytkownik | `CheckoutRequest` | `201 OrderRead` | 400, 401, 409 |
 | GET | `/orders` | użytkownik | — | `200 OrderRead[]` | 401 |
 | GET | `/orders/{order_id}` | właściciel | — | `200 OrderRead` | 400, 401, 404 |
 | GET | `/orders/admin/all` | admin | query poniżej | `200 OrderRead[]` | 400, 401, 403 |
-| PATCH | `/orders/{order_id}/status` | admin | `OrderStatusUpdate` | `200 OrderRead` | 400, 401, 403, 404 |
+| PATCH | `/orders/{order_id}/status` | admin | `OrderStatusUpdate` | `200 OrderRead` | 400, 401, 403, 404, 409 |
 
-`OrderCreate` zawiera wyłącznie dane wysyłki: `shipping_full_name`,
+`CheckoutRequest` zawiera wyłącznie dane wysyłki: `shipping_full_name`,
 `shipping_address_line1`, opcjonalne `shipping_address_line2`, `shipping_city`,
 `shipping_postal_code`, `shipping_country`, opcjonalne `shipping_notes`.
 Produkty i kwoty pochodzą z koszyka. Opcjonalny nagłówek `Idempotency-Key`
@@ -163,9 +168,10 @@ i `product_name_snapshot`.
 
 Lista administracyjna przyjmuje `skip` (domyślnie 0), `limit` (1–100, domyślnie
 50), opcjonalny `status` oraz `user_id` ≥ 1. Dostępne statusy to `pending`,
-`paid`, `shipped`, `cancelled`. Docelowe przejścia: `pending → paid/cancelled`
+`paid`, `shipped`, `cancelled`. Dozwolone przejścia w trybie live: `pending → paid/cancelled`
 oraz `paid → shipped/cancelled`; niepoprawne przejście daje `400`.
-Przykładowa odpowiedź PATCH prezentuje wybrany status bez sprawdzania przejść.
+Wyłącznie w trybie kontraktowym przykładowa odpowiedź PATCH prezentuje
+wybrany status bez sprawdzania przejść.
 
 Operacje administracyjne zachowują ścieżki zasobów i są dodatkowo oznaczone
 tagiem `admin` w Swaggerze. Nie wymagają osobnego prefiksu `/admin`.
@@ -187,23 +193,22 @@ tagiem `admin` w Swaggerze. Nie wymagają osobnego prefiksu `/admin`.
 - Nieoczekiwany błąd serwera zwraca `500` z `{"detail":"Internal server error"}`,
   bez szczegółów technicznych; pełny opis błędu trafia tylko do logów API.
 
-## Review frontendu
+## Zgodność i weryfikacja
 
-- [ ] Ścieżki, metody i wymagane role odpowiadają ekranom MVP.
-- [ ] Nazwy pól i struktury request/response są zaakceptowane.
-- [ ] Stringi kwot, statusy zamówień i format dat są zaakceptowane.
-- [ ] Paginacja listy produktów oraz odczyt `X-Total-Count` są zaakceptowane.
-- [ ] Obsługa `400`, `401`, `403`, `404` i `409` jest uzgodniona.
-- [ ] Frontend potwierdził akceptację kontraktu w review zadania #13.
+Dokumentacja odpowiada endpointom trybu live: 28 operacji `/api/v1` oraz
+osobny `GET /health`. Testy pytest sprawdzają odpowiedzi i reguły API;
+Playwright obejmuje interfejs oraz pełny zakup na PostgreSQL.
+Tryb kontraktowy nie udostępnia odświeżania JWT ani płatności.
 
-## Dodatkowe operacje trybu live
+## Płatności w trybie live
 
-- `POST /auth/refresh` — request `RefreshRequest`, response `SessionTokens`;
-  błędy `400`, `401`, `429`. Logowanie live również zwraca `SessionTokens`.
-- `POST /payments/mock/sessions` — `MockSessionRequest`, `201 PaymentRead`.
-- `POST /payments/mock/{payment_id}/complete` — `MockCompletionRequest`, `200 PaymentRead`.
-- `GET /payments/{payment_id}/status` — `200 PaymentRead`.
+| Metoda | Ścieżka | Dostęp | Request | Sukces / response | Pozostałe kody |
+| --- | --- | --- | --- | --- | --- |
+| POST | `/payments/mock/sessions` | właściciel, local/test | `MockSessionRequest` | `201 PaymentRead` | 400, 401, 404, 409 |
+| POST | `/payments/mock/{payment_id}/complete` | właściciel, local/test | `MockCompletionRequest` | `200 PaymentRead` | 400, 401, 404, 409 |
+| GET | `/payments/{payment_id}/status` | właściciel | — | `200 PaymentRead` | 400, 401, 404 |
 
 Symulacja wymaga `PAYMENTS_MOCK=true` i środowiska lokalnego/testowego.
+W produkcji operacje `/payments/mock/*` są wyłączone i zwracają `404`.
 Każda płatność jest dostępna wyłącznie właścicielowi zamówienia. Nie ma integracji
 z zewnętrzną bramką ani webhooka. Pełne reguły są w dokumentacji runtime.

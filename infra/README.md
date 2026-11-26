@@ -68,8 +68,9 @@ odwzorowuje jej konfigurację.
 
 Endpoint: `pz-db.cl2kmam8azud.eu-north-1.rds.amazonaws.com:5432` (nie jest
 sekretem; z Internetu i z laptopa jest nieosiągalny). Konto `pgadmin` służy tylko
-do administracji – backend będzie łączył się ograniczonym kontem `shop_app`
-utworzonym przez migracje (Blok 8), z hasłem wstrzykiwanym z Secrets Manager.
+do administracji. Backend łączy się ograniczonym kontem `shop_app`, z hasłem
+wstrzykiwanym z Secrets Manager. Role tworzy bootstrap bazy, a migracje Alembic
+tworzą schemat; skrypt `db/scripts/grant-app-permissions.sql` nadaje uprawnienia aplikacji.
 
 Koszt: ok. 15 USD miesięcznie (instancja 0,019 USD/h + dysk + sekret), pokrywany
 z kredytów konta. Gdy baza nie jest potrzebna: Actions → **Stop temporarily**
