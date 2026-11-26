@@ -1,12 +1,32 @@
 # Z Dech Pies
 
-Wieloplatformowa aplikacja e-commerce umożliwiająca przeglądanie produktów, zarządzanie koszykiem, składanie zamówień oraz obsługę płatności internetowych.
+Wieloplatformowa aplikacja e-commerce umożliwiająca przeglądanie produktów, zarządzanie koszykiem, składanie zamówień oraz zarządzanie kontem użytkownika.
 
 System obejmuje aplikację webową PWA (React), backend oparty na FastAPI i PostgreSQL oraz panel administracyjny do zarządzania ofertą sklepu. W dalszych etapach planowany jest rozwój aplikacji mobilnej (React Native) i integracja z rzeczywistą bramką płatności.
+
+## Live URL
+
+**Aplikacja:** [https://d295uboxigcnkp.cloudfront.net](https://d295uboxigcnkp.cloudfront.net)
+
+[Swagger UI](https://d295uboxigcnkp.cloudfront.net/docs) · [OpenAPI JSON](https://d295uboxigcnkp.cloudfront.net/openapi.json) · [Healthcheck](https://d295uboxigcnkp.cloudfront.net/health)
+
+Frontend i API działają pod wspólną domeną CloudFront. `/health` i `/version.json`
+zwracają identyfikator wdrożonego commita. Pusty katalog oznacza brak produktów
+w bazie; przykładowe dane można przygotować lokalnie poleceniem seed z Quick Start.
+
+## Zespół
+
+| Rola | Osoba |
+| --- | --- |
+| DevOps / Project Manager | Paula Trzcińska |
+| Frontend | Patryk Stulczewski |
+| Backend | Dawid Makielak |
+| Administrator bazy danych | Krzysztof Trzęsicki |
 
 ## Funkcjonalności
 
 **Dla klienta**
+
 - przeglądanie katalogu produktów i kategorii
 - zarządzanie koszykiem
 - składanie zamówień
@@ -14,6 +34,7 @@ System obejmuje aplikację webową PWA (React), backend oparty na FastAPI i Post
 - opcjonalna lokalna symulacja płatności
 
 **Dla administratora**
+
 - zarządzanie produktami i kategoriami (CRUD)
 - zarządzanie cenami i stanami magazynowymi
 - ukrywanie i ponowna aktywacja produktów
@@ -27,11 +48,11 @@ System obejmuje aplikację webową PWA (React), backend oparty na FastAPI i Post
 | Frontend (mobile) | React Native (planowany) |
 | Backend | Python, FastAPI |
 | Baza danych | PostgreSQL |
-| Chmura | AWS (docelowo) |
+| Chmura | AWS: S3, CloudFront, ECS Fargate, RDS PostgreSQL |
 
 ## Architektura
 
-System oparty jest na architekturze trójwarstwowej. Aplikacja działa lokalnie oraz w chmurze AWS, do której jest wdrażana automatycznie po każdej zmianie w `main` (zob. [Wdrożenie](#wdrożenie)).
+System oparty jest na architekturze trójwarstwowej. Aplikacja działa lokalnie oraz w chmurze AWS. Zmiany w `main` są wdrażane automatycznie po pomyślnym zakończeniu CI (zob. [Wdrożenie](#wdrożenie)).
 
 1. **Warstwa Web** – aplikacja PWA (React + TypeScript), obsługująca interfejs użytkownika, formularze i komunikację z REST API. Hostowana w Amazon S3 z dystrybucją przez CloudFront.
 2. **Warstwa API** – backend w Pythonie (FastAPI), odpowiedzialny za logikę biznesową, walidację danych, uwierzytelnianie JWT oraz obsługę zapytań do bazy danych. W chmurze działa jako kontener ECS Fargate w podsieci prywatnej, dostępny przez CloudFront pod tym samym adresem co frontend (`/api`).
@@ -51,57 +72,143 @@ flowchart LR
 
 ```text
 .
-├── web/        # aplikacja PWA (React + TypeScript)
-├── mobile/     # aplikacja mobilna (React Native)
-├── backend/    # API (FastAPI)
-├── db/         # migracje, skrypty i dane testowe bazy
-├── infra/      # konfiguracja infrastruktury AWS
-└── docs/       # dokumentacja projektu
+├── .github/workflows/        # CI, analiza kodu i wdrożenie
+├── web/                     # React + TypeScript, komponenty i testy Playwright
+│   └── .env.example         # publiczne ustawienia Vite i lokalnego proxy
+├── mobile/                  # miejsce na planowaną aplikację mobilną
+├── backend/                 # FastAPI: api, schemas, services, models, tests
+│   ├── .env.example         # połączenie z bazą i konfiguracja aplikacji
+│   └── .env.runtime.example # JWT, tryb API i lokalna symulacja płatności
+├── db/                      # migracje Alembic, role i skrypty PostgreSQL
+│   └── .env.example         # ustawienia lokalnego kontenera PostgreSQL
+├── infra/terraform/         # infrastruktura AWS
+└── docs/                    # dokumentacja i raporty
 ```
 
-## Uruchomienie lokalne
+Szablony `.env.example` są wersjonowane. Własne `.env`, `.env.runtime`, hasła i JWT
+pozostają lokalnie; reguły `.gitignore` wykluczają je z repozytorium.
 
-Do uruchomienia aplikacji wymagane są Python 3.12+, uv, Node.js, npm oraz PostgreSQL 16.
+## Quick Start
 
-1. Przygotuj bazę PostgreSQL, role i migracje zgodnie z instrukcją [db/README.md](db/README.md).
-2. W katalogu `backend/` zainstaluj zależności poleceniem `uv sync --locked`.
-3. Przygotuj pliki `.env` oraz `.env.runtime` na podstawie dostępnych szablonów i ustaw `API_MODE=live`.
-4. Uruchom backend:
+Wymagane: Python 3.12+, uv, Node.js 22.12+ (plik `web/.nvmrc` wybiera 24),
+npm 10+ oraz Docker z Compose. Poniższe polecenia Bash/WSL zaczynają się
+w katalogu głównym repozytorium i uruchamiają API live z PostgreSQL 16.
 
-   ```bash
-   uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-   ```
+**Live URL:** [https://d295uboxigcnkp.cloudfront.net](https://d295uboxigcnkp.cloudfront.net).
 
-5. W katalogu `web/` zainstaluj zależności za pomocą `npm ci`, przygotuj plik `.env` i ustaw `VITE_USE_MOCK_API=false` oraz `API_PROXY_TARGET=http://127.0.0.1:8000`.
-6. Uruchom frontend:
+### 1. Przygotuj konfigurację
 
-   ```bash
-   npm run dev
-   ```
+```bash
+cp db/.env.example db/.env
+cp backend/.env.example backend/.env
+cp backend/.env.runtime.example backend/.env.runtime
+cp web/.env.example web/.env
+uv sync --locked --directory backend
+```
 
-Frontend będzie dostępny pod adresem wskazanym przez Vite, a dokumentacja Swagger API pod `http://127.0.0.1:8000/docs`.
+W `db/.env` wpisz własne, niepuste hasła `POSTGRES_PASSWORD`,
+`MIGRATION_DATABASE_PASSWORD` i `APP_DATABASE_PASSWORD`. W `backend/.env`
+ustaw te same wartości: `DB_PASSWORD` = `APP_DATABASE_PASSWORD`,
+`MIGRATION_DB_PASSWORD` = `MIGRATION_DATABASE_PASSWORD`.
+Domyślne nazwy bazy i ról to `shop`, `shop_app` i `shop_migrator`.
 
-Szczegółowa instrukcja konfiguracji bazy, środowiska lokalnego i testów integracyjnych znajduje się w [docs/blok06-local.md](docs/blok06-local.md).
+W `backend/.env.runtime` pozostaw `API_MODE=live`, `APP_ENV=local` i ustaw
+`JWT_SECRET` na losową wartość co najmniej 32 bajtów. Generator:
+
+```bash
+uv run --directory backend python -c 'import secrets; print(secrets.token_urlsafe(48))'
+```
+
+W `web/.env` ustaw `VITE_USE_MOCK_API=false`, pozostaw `VITE_API_BASE_URL=`
+puste oraz `API_PROXY_TARGET=http://127.0.0.1:8000`.
+
+### 2. Uruchom bazę, migracje i katalog przykładowy
+
+```bash
+docker compose --env-file db/.env -f db/compose.yaml up -d --wait
+uv run --directory backend alembic -c ../db/alembic.ini upgrade head
+docker compose --env-file db/.env -f db/compose.yaml exec -T postgres \
+  psql -U shop_migrator -d shop -v ON_ERROR_STOP=1 \
+  -f /project-scripts/grant-app-permissions.sql
+uv run --directory backend python -m app.scripts.seed
+```
+
+Powyższe polecenia zakładają domyślne `POSTGRES_DB=shop` i port 5432.
+Zmiana bazy lub portu wymaga spójnych ustawień `DB_NAME` i `DB_PORT` backendu.
+Seed dodaje katalog demonstracyjny; nie tworzy kont ani zamówień.
+Opcjonalny administrator: `uv run --directory backend python -m app.scripts.create_admin admin.local@example.com`.
+CLI poprosi o hasło bez wyświetlania go w konsoli.
+
+### 3. Uruchom API i frontend
+
+W pierwszym terminalu, z katalogu głównego:
+
+```bash
+uv run --directory backend uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+W drugim terminalu:
+
+```bash
+cd web
+npm ci
+npm run dev
+```
+
+| Adres lokalny | Przeznaczenie |
+| --- | --- |
+| [http://localhost:5173](http://localhost:5173) | Aplikacja webowa |
+| [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) | Swagger UI |
+| [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health) | Stan procesu API |
+
+Publiczna aplikacja: [Live URL](https://d295uboxigcnkp.cloudfront.net).
+
+Szczegóły ról i konfiguracji PostgreSQL: [db/README.md](db/README.md).
+Instrukcja PowerShell, testy i integracja lokalna: [docs/blok06-local.md](docs/blok06-local.md).
 
 ## API Endpoints
 
-API udostępnia operacje CRUD dla produktów i kategorii oraz obsługę użytkowników, koszyka i zamówień.
+API udostępnia katalog, konta i JWT, koszyk, zamówienia oraz lokalną symulację płatności.
 
-Prefiks API: `/api/v1`.
+Prefiks poniższych ścieżek: `/api/v1`. Chronione żądania wymagają
+`Authorization: Bearer <access_token>`; dostęp administracyjny sprawdza backend.
+Osobny `GET /health` zwraca `200` poza prefiksem API.
 
-| Metoda | Endpoint | Działanie |
-| --- | --- | --- |
-| GET | `/products` | Lista produktów |
-| POST | `/products` | Dodanie produktu |
-| PATCH | `/products/{id}` | Edycja produktu |
-| DELETE | `/products/{id}` | Ukrycie lub usunięcie produktu |
-| GET | `/categories` | Lista kategorii |
-| POST | `/categories` | Dodanie kategorii |
-| PATCH | `/categories/{id}` | Edycja kategorii |
-| DELETE | `/categories/{id}` | Usunięcie pustej kategorii |
-| POST | `/auth/login` | Logowanie użytkownika |
-| GET | `/cart` | Odczyt koszyka |
-| GET, POST | `/orders` | Pobieranie i tworzenie zamówień |
+| Metoda | Endpoint | Dostęp | Sukces | Działanie |
+| --- | --- | --- | --- | --- |
+| POST | `/auth/register` | Publiczny | 201 | Rejestracja klienta |
+| POST | `/auth/login` | Publiczny | 200 | JWT access i refresh |
+| POST | `/auth/refresh` | Refresh token | 200 | Odświeżenie sesji |
+| GET | `/auth/me` | Użytkownik | 200 | Odczyt profilu |
+| PATCH | `/auth/me` | Użytkownik | 200 | Zmiana profilu i adresu |
+| POST | `/auth/change-password` | Użytkownik | 204 | Zmiana hasła |
+| GET | `/categories` | Publiczny | 200 | Lista kategorii |
+| GET | `/categories/{category_id}` | Publiczny | 200 | Szczegóły kategorii |
+| POST | `/categories` | Administrator | 201 | Dodanie kategorii |
+| PATCH | `/categories/{category_id}` | Administrator | 200 | Edycja kategorii |
+| DELETE | `/categories/{category_id}` | Administrator | 204 | Usunięcie pustej kategorii |
+| GET | `/products` | Publiczny | 200 | Lista, filtry i paginacja |
+| GET | `/products/{product_id}` | Publiczny | 200 | Szczegóły aktywnego produktu |
+| POST | `/products` | Administrator | 201 | Dodanie produktu |
+| PATCH | `/products/{product_id}` | Administrator | 200 | Edycja produktu |
+| DELETE | `/products/{product_id}` | Administrator | 204 | Dezaktywacja; opcjonalnie `hard=true` |
+| GET | `/cart` | Użytkownik | 200 | Odczyt koszyka |
+| POST | `/cart/items` | Użytkownik | 201 | Dodanie pozycji |
+| PATCH | `/cart/items/{item_id}` | Użytkownik | 200 | Ustawienie ilości |
+| DELETE | `/cart/items/{item_id}` | Użytkownik | 200 | Usunięcie pozycji |
+| POST | `/orders` | Użytkownik | 201 | Zamówienie z koszyka |
+| GET | `/orders` | Właściciel | 200 | Historia zamówień |
+| GET | `/orders/{order_id}` | Właściciel | 200 | Szczegóły zamówienia |
+| GET | `/orders/admin/all` | Administrator | 200 | Wszystkie zamówienia |
+| PATCH | `/orders/{order_id}/status` | Administrator | 200 | Zmiana statusu |
+| POST | `/payments/mock/sessions` | Właściciel, local/test | 201 | Symulowana sesja płatności |
+| POST | `/payments/mock/{payment_id}/complete` | Właściciel, local/test | 200 | Symulacja wyniku płatności |
+| GET | `/payments/{payment_id}/status` | Właściciel | 200 | Status płatności |
+
+Operacje `/payments/mock/*` wymagają `PAYMENTS_MOCK=true` i są wyłączone
+w środowisku produkcyjnym. Wgląd w nieaktywne produkty wymaga administratora.
+Lista produktów zwraca `X-Total-Count`; złożenie zamówienia obsługuje UUID
+w nagłówku `Idempotency-Key`.
 
 Przykładowe żądanie `POST /api/v1/products`:
 
@@ -116,7 +223,7 @@ Przykładowe żądanie `POST /api/v1/products`:
 }
 ```
 
-API zwraca odpowiednie kody HTTP, m.in. `200`, `201`, `204`, `400`, `401`, `403`, `404` i `409`.
+API zwraca odpowiednie kody HTTP, m.in. `200`, `201`, `204`, `400`, `401`, `403`, `404`, `409`, `429` i `500`.
 
 Pełny opis endpointów, przykłady odpowiedzi JSON oraz kodów HTTP znajduje się w [docs/api-contract.md](docs/api-contract.md).
 
@@ -263,23 +370,27 @@ Infrastruktura (S3, CloudFront, ECR, ECS, NLB, użytkownik IAM wdrożenia, punkt
 opisana w Terraform w [`infra/terraform`](infra/terraform). Szczegóły:
 [docs/deployment.md](docs/deployment.md).
 
-## Zespół
-
-| Rola | Osoba |
-| --- | --- |
-| DevOps / Project Manager | Paula Trzcińska |
-| Frontend | Patryk Stulczewski |
-| Backend | Dawid Makielak |
-| Administrator bazy danych | Krzysztof Trzęsicki |
-
 ## Organizacja pracy
 
 - zadania prowadzimy w GitHub Projects (tablica Kanban),
 - każda zmiana trafia do gałęzi `main` przez Pull Request z przeglądem kodu,
 - scalenie wymaga zielonego statusu CI (testy, skan sekretów i podatności).
 
-## Architektura 3-tier
+## Architektura wdrożenia AWS
 
-Poniższy diagram przedstawia docelową architekturę aplikacji w chmurze AWS.
+Poniższy diagram Mermaid odpowiada wdrożeniu opisanemu w Terraform.
+S3 i CloudFront udostępniają frontend, a API i baza pozostają w sieci prywatnej.
 
-<img width="909" height="1033" alt="Architektura 3-tier" src="https://github.com/user-attachments/assets/0c23df7d-5dce-4907-9fde-ff9c1a3d367d" />
+```mermaid
+flowchart TB
+    U["Przeglądarka / React PWA"] -->|HTTPS| CF["Amazon CloudFront"]
+    CF -->|"Pliki statyczne / OAC"| S3[("Prywatny bucket S3")]
+    subgraph VPC["AWS VPC"]
+        NLB["Wewnętrzny NLB"] -->|"HTTP 8000"| API["FastAPI / ECS Fargate"]
+        API -->|"PostgreSQL 5432 / TLS"| DB[("RDS PostgreSQL 16")]
+    end
+    CF -->|"/api/* i dokumentacja / VPC origin"| NLB
+```
+
+CloudFront przekazuje również `/health`, `/docs` i `/openapi.json` do API.
+Szczegóły sieci, sekretów i pipeline'u: [docs/deployment.md](docs/deployment.md).

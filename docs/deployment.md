@@ -3,7 +3,18 @@
 Każdy commit, który trafi do `main` i przejdzie workflow **CI**
 ([`ci.yml`](../.github/workflows/ci.yml)), jest automatycznie wdrażany do AWS przez
 workflow **Deploy** ([`.github/workflows/deploy.yml`](../.github/workflows/deploy.yml)).
-Nic nie trafia do chmury bez zielonych testów i skanów.
+Automatyczne wdrożenie po pushu czeka na zielone testy i skany.
+Dostępne jest również ręczne uruchomienie `workflow_dispatch`, opisane poniżej.
+
+## Publiczny adres
+
+Live URL: [https://d295uboxigcnkp.cloudfront.net](https://d295uboxigcnkp.cloudfront.net).
+Frontend i API korzystają z tej samej domeny. Dostępne są również
+[Swagger UI](https://d295uboxigcnkp.cloudfront.net/docs),
+[OpenAPI](https://d295uboxigcnkp.cloudfront.net/openapi.json),
+[healthcheck](https://d295uboxigcnkp.cloudfront.net/health) i
+[wersja frontendu](https://d295uboxigcnkp.cloudfront.net/version.json).
+Adres jest wartością `PUBLIC_URL` i outputu Terraform `public_url`.
 
 ## Przebieg
 

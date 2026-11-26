@@ -38,7 +38,8 @@ Testy kontraktu nie wymagają połączenia z bazą. Testy integracyjne wymagają
 wymagające PostgreSQL są pomijane.
 
 Kontrakt i reguły operacji: [api-contract.md](../docs/api-contract.md).
-Status akceptacji przez frontend pozostaje do potwierdzenia przez zespół.
+Aktualny schemat generują routery i modele Pydantic. Tryb `live` udostępnia
+również odświeżanie JWT i operacje płatności opisane w dokumentacji API.
 
 ## Warstwa danych
 

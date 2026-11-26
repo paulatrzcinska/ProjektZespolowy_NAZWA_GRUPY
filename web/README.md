@@ -6,7 +6,8 @@ Aplikacja korzysta z REST API opisanego w [`docs/api-contract.md`](../docs/api-c
 ## Uruchomienie lokalne
 
 Wymagane Node.js 22.12+ (plik `.nvmrc` wybiera 24), npm 10+ i uv dla backendu.
-W pierwszym terminalu, z katalogu głównego repozytorium:
+Najpierw przygotuj `.env`, `.env.runtime`, JWT, bazę i migracje według
+[Quick Start](../README.md#quick-start). W pierwszym terminalu, z katalogu głównego repozytorium:
 
 ```bash
 cd backend
@@ -60,7 +61,7 @@ nie przechowuje haseł ani kluczy do usług zewnętrznych.
 
 ## API i środowisko backendu
 
-Dla backendu z logiką biznesową zastosuj również patch bazy, ustaw `.env`
+Dla backendu z logiką biznesową wykonaj migracje bazy, ustaw `.env`
 oraz `.env.runtime` i wygeneruj losowy `JWT_SECRET`. Szczegóły opisuje
 [`docs/backend-runtime.md`](../docs/backend-runtime.md). Produkty muszą znajdować
 się w bazie; opcjonalny seed dodaje katalog demonstracyjny. Rejestracja i zapisy
@@ -75,7 +76,7 @@ Testy kontraktu interfejsu uruchamiają backend z `API_MODE=contract` i
 `APP_ENV=test`. W tym jawnym trybie odpowiedzi są przykładowe, zapisy nie są
 trwałe, a filtry są tylko parametrami żądań. Konta przykładowe i tokeny
 `example-user-token` / `example-admin-token` dotyczą wyłącznie tego trybu.
-Docelową autoryzację sprawdzają testy integracyjne backendu na PostgreSQL.
+Autoryzację sprawdzają testy integracyjne backendu na PostgreSQL.
 
 Frontend nie ma jeszcze widoku płatności. Lokalna symulacja backendu może być
 obsłużona przez Swagger UI; jej endpointy i włączenie są opisane w dokumentacji
@@ -101,7 +102,7 @@ te same typy, filtrowanie, sortowanie i paginacja. Koszyk, logowanie i
 zamówienia nadal wymagają backendu. Wyłączenie mocka (puste `VITE_USE_MOCK_API`)
 przełącza aplikację na prawdziwe API bez zmian w kodzie.
 
-## Docker (warstwa WEB, Public Subnet)
+## Docker lokalnie
 
 `Dockerfile` buduje aplikację (Node 22) i serwuje `dist/` przez Nginx 1.27 z
 fallbackiem SPA (`nginx/default.conf`):
@@ -113,8 +114,9 @@ docker run --rm -p 8080:80 zdechpies-web
 ```
 
 Sklep: http://localhost:8080. Zmienne `VITE_*` są wbudowywane w bundle podczas
-`docker build` (`--build-arg`), więc nie mogą zawierać sekretów. Proxy `/api/`
-do backendu i health check kontenera zostaną dodane przy wdrożeniu do chmury.
+`docker build` (`--build-arg`), więc nie mogą zawierać sekretów. Ten kontener serwuje pliki statyczne i fallback SPA; konfiguracja Nginx nie
+przekazuje `/api/` do backendu. W działającym wdrożeniu AWS frontend jest
+udostępniany przez S3 i CloudFront, a CloudFront kieruje API do ECS Fargate.
 
 ## Build i PWA
 
@@ -165,8 +167,9 @@ zezwalać na domenę sklepu i udostępniać `X-Total-Count`.
 Alternatywnie ustaw przed buildem `VITE_API_BASE_URL=https://api.example.com`
 (bez `/api/v1`). Jest to publiczny adres wejścia API, nigdy wewnętrzny host
 VPC. `API_PROXY_TARGET` działa tylko podczas dev/preview. Zmienne `VITE_*`
-są widoczne w bundlu, więc nie mogą zawierać sekretów. Konfiguracja AWS i
-wdrożenie pozostają poza zakresem frontendu.
+są widoczne w bundlu, więc nie mogą zawierać sekretów. Konfigurację AWS i
+wdrożenie opisują [instrukcje wdrożenia](../docs/deployment.md). Działająca aplikacja:
+[Live URL](https://d295uboxigcnkp.cloudfront.net).
 
 ## Testy w przeglądarce
 
