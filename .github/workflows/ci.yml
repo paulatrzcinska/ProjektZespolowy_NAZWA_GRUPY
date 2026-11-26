@@ -130,7 +130,7 @@ jobs:
         env:
           CI: "true"
       - name: Upload browser reports and failure artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: playwright-contract-results
@@ -180,7 +180,7 @@ jobs:
           TEST_DATABASE_URL: postgresql+asyncpg://postgres:ci-local-only@127.0.0.1:5432/shop_test
         run: uv run pytest -q --junitxml=test-results/pytest.xml
       - name: Upload API and database test report
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: pytest-results
@@ -253,7 +253,7 @@ jobs:
       - name: Customer purchase through React, FastAPI and PostgreSQL (headless)
         run: npm run test:e2e:live
       - name: Upload E2E reports and failure artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         if: always()
         with:
           name: playwright-live-results
