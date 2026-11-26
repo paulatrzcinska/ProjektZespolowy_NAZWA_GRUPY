@@ -186,6 +186,20 @@ CRUD administratora, błędy API oraz rzeczywisty cache service workera offline.
 Podstawą są endpointy BE-2. Wybrane błędy oraz odpowiedź zmiany ilości koszyka
 są symulowane, ponieważ backend kontraktowy nie ma trwałego stanu.
 
+Pełny test zakupu bez mockowania znajduje się w `tests-live/purchase.spec.ts`.
+Uruchom go poleceniem `npm run test:e2e:live` z `E2E_PHASE=purchase` oraz
+`E2E_ALLOW_WRITES=local-test-database`, po przygotowaniu osobnej bazy, migracji
+i seeda. Ta faza rejestruje własnego klienta i nie wymaga administratora.
+Konfiguracja live sama uruchamia API na 18001 i podgląd na 4176.
+
+Oba zestawy pracują domyślnie headless i tworzą raporty HTML w
+`playwright-report/contract` lub `playwright-report/live` oraz JUnit w
+`test-results/*-junit.xml`. Przy błędzie zachowują screenshot i wideo;
+zestaw kontraktowy zachowuje też trace. Otwórz raport przez
+`npx playwright show-report playwright-report/contract` (lub `live`).
+Tryb z widocznym oknem: dodaj `-- --headed` do polecenia npm.
+Pełna konfiguracja bazy i opis artefaktów CI: [README — Testowanie](../README.md#testowanie).
+
 ## Struktura
 
 ```text

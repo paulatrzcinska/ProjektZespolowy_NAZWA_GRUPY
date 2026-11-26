@@ -122,29 +122,116 @@ Pełny opis endpointów, przykłady odpowiedzi JSON oraz kodów HTTP znajduje si
 
 ## Testowanie
 
-Projekt wykorzystuje pytest do testowania backendu oraz Playwright do weryfikacji interfejsu użytkownika i integracji E2E.
+Projekt wykorzystuje pytest oraz Playwright (Chromium, domyślnie headless).
+Wymagane są Python 3.12+, uv oraz Node.js zgodny z `web/.nvmrc` i npm 10+.
 
-Podstawowe polecenia:
+| Zestaw | Zakres |
+| --- | --- |
+| API — pytest | Endpointy REST, kody HTTP, JSON, walidacja, role, CORS i nagłówki: `Content-Type`, `WWW-Authenticate`, `Cache-Control`, `X-Total-Count` oraz nagłówki bezpieczeństwa |
+| UI — Playwright contract | Katalog desktop/mobile, logowanie, koszyk, checkout, panel administratora, błędy i PWA offline; przykładowe odpowiedzi API bez trwałych zapisów |
+| E2E — Playwright live, faza `purchase` | Pełna ścieżka klienta przez React → FastAPI → PostgreSQL, bez mockowania żądań; zapis koszyka i zamówienia sprawdzany po odświeżeniu |
+
+### API i UI bez bazy danych
+
+Z katalogu głównego repozytorium:
 
 ```bash
-# backend/
-uv run pytest
-
-# web/
+cd backend
+uv sync --locked
+uv run pytest -q --junitxml=test-results/pytest.xml
+cd ../web
+npm ci
+npx playwright install --with-deps chromium
 npm run typecheck
-npm run build
 npm run test:e2e
 ```
 
-Dodatkowo dostępne są testy pełnej integracji z rzeczywistą bazą PostgreSQL:
+Bez `TEST_DATABASE_URL` testy wymagające PostgreSQL mają status `skipped`.
+Playwright sam buduje frontend i uruchamia kontraktowe API na porcie 18000
+oraz podgląd na 4175. Nie trzeba wcześniej uruchamiać serwerów.
+
+### Pełna ścieżka zakupu na PostgreSQL
+
+Poniższe polecenia Bash/WSL uruchamiają osobną lokalną bazę testową (Docker),
+migracje i katalog demonstracyjny. Nie wymagają konta administratora.
+Test tworzy klienta z unikalnym e-mailem, kupuje dwie sztuki `Pufa welurowa DOT`,
+sprawdza kwotę 898,00 zł, adres dostawy, historię i status zamówienia oraz pusty koszyk.
 
 ```bash
+# Z katalogu głównego; baza wyłącznie do testów, bez trwałego wolumenu.
+docker run --rm -d --name zdechpies-e2e-db \
+  -p 127.0.0.1:55432:5432 \
+  -e POSTGRES_DB=shop_e2e_test -e POSTGRES_PASSWORD=local-test-only \
+  postgres:16-alpine
+# Poczekaj na wynik "accepting connections"; w razie potrzeby ponów.
+docker exec zdechpies-e2e-db pg_isready -U postgres -d shop_e2e_test
+
+export DB_HOST=127.0.0.1 DB_PORT=55432 DB_NAME=shop_e2e_test
+export DB_USER=postgres DB_PASSWORD=local-test-only
+export MIGRATION_DB_USER=postgres MIGRATION_DB_PASSWORD=local-test-only
+export API_MODE=live APP_ENV=test CREATE_DEFAULT_ADMIN=false PAYMENTS_MOCK=false
+export AUTH_RATE_LIMIT=1000
+cd backend
+uv sync --locked
+export JWT_SECRET=$(uv run python -c 'import secrets; print(secrets.token_urlsafe(48))')
+uv run alembic -c ../db/alembic.ini upgrade head
+uv run python -m app.scripts.seed
+
+# Wszystkie testy backendu, łącznie z integracyjnymi na izolowanych schematach.
+export TEST_DATABASE_URL=postgresql+asyncpg://postgres:local-test-only@127.0.0.1:55432/shop_e2e_test
+uv run pytest -q --junitxml=test-results/pytest.xml
+
+cd ../web
+npm ci
+npx playwright install --with-deps chromium
+export E2E_ALLOW_WRITES=local-test-database E2E_PHASE=purchase
 npm run test:e2e:live
+
+# Po testach: zatrzymanie kontenera usuwa tę tymczasową bazę.
+docker stop zdechpies-e2e-db
 ```
 
-Testy kontraktowe weryfikują interfejs i zgodność z API, natomiast testy live sprawdzają rzeczywisty przepływ danych pomiędzy React, FastAPI i PostgreSQL.
+Playwright uruchamia API live na porcie 18001 i frontend na 4176.
+Scenariusz pozostawia klienta i zamówienie w bazie testowej; kolejne uruchomienia
+tworzą nowe konto i zużywają stan produktu. Na świeżej bazie seed zapewnia 20 sztuk.
+Przy własnej bazie wskaż ją w zmiennych `DB_*` lub `backend/.env` i wykonaj migracje
+oraz seed. Hasła powyżej służą wyłącznie tymczasowemu lokalnemu kontenerowi.
+Instrukcja PowerShell i pozostałe fazy live (`crud`, `restart`, `offline`):
+[docs/blok06-local.md](docs/blok06-local.md#e5-testy).
 
-Szczegóły przygotowania środowiska testowego i scenariuszy znajdują się w [docs/blok06-local.md](docs/blok06-local.md).
+### Raporty, błędy i wyniki CI
+
+| Pliki | Zawartość |
+| --- | --- |
+| `backend/test-results/pytest.xml` | Raport JUnit API i bazy: wyniki, błędy, pominięcia |
+| `web/playwright-report/contract/`, `web/playwright-report/live/` | Raporty HTML z krokami i załącznikami |
+| `web/test-results/contract-junit.xml`, `web/test-results/live-junit.xml` | Raporty JUnit Playwright |
+| `web/test-results/contract/`, `web/test-results/live/` | Screenshot `.png` i nagranie `.webm` przy błędzie; dodatkowo `trace.zip` dla testów kontraktowych |
+
+Otwieranie raportów i trace z katalogu `web/`:
+
+```bash
+npx playwright show-report playwright-report/contract
+npx playwright show-report playwright-report/live
+npx playwright show-trace test-results/contract/<katalog-testu>/trace.zip
+```
+
+Trace live jest wyłączony, ponieważ zawierałby treść żądań logowania.
+Screenshoty i wideo live pokazują interfejs z zamaskowanym hasłem.
+
+W GitHub otwórz **Actions → CI → wybrane uruchomienie**. Joby `Frontend build
+and tests (web)`, `Backend build and tests (backend)` i `Customer purchase E2E
+(headless, live API)` zawierają logi. W sekcji **Artifacts** pobierz odpowiednio
+`playwright-contract-results`, `pytest-results` lub `playwright-live-results`.
+Raporty są wysyłane również po błędzie i przechowywane przez 14 dni; załączniki
+diagnostyczne powstają tylko dla nieudanych testów (w tym nieudanej pierwszej próby).
+Po rozpakowaniu artefaktu Playwright otwórz jego katalog raportu przez
+`npx playwright show-report <katalog-z-index.html>`.
+
+`passed` oznacza sukces, `failed` błąd testu, `skipped` pominięcie (lokalnie
+najczęściej brak bazy), a `flaky` sukces po ponowieniu. Testy kontraktowe w CI
+mają jedno ponowienie; test zakupu live nie jest ponawiany. Nieudany test daje
+niezerowy kod wyjścia i blokuje `CI status`, a przez to automatyczne wdrożenie.
 
 ## Integracja ciągła (CI)
 
@@ -152,7 +239,7 @@ Workflow GitHub Actions [`.github/workflows/ci.yml`](.github/workflows/ci.yml) u
 
 1. **Secret scan** – Gitleaks przeszukuje historię commitów pod kątem kluczy, haseł i tokenów; wyciek zatrzymuje pipeline przed budowaniem.
 2. **Vulnerability scan** – Trivy sprawdza zależności `web/` i `backend/` (CVE), sekrety w drzewie oraz konfigurację Dockerfile i Terraform; wyniki trafiają do zakładki Security.
-3. **Build & test** – równolegle: frontend (`typecheck`, `build`, testy Playwright, obraz Nginx), backend (`uv sync --locked`, kompilacja, `pytest` na PostgreSQL 16) i infrastruktura (`terraform fmt`, `validate`).
+3. **Build & test** – równolegle: frontend (`typecheck`, `build`, testy Playwright headless, obraz Nginx), backend (`uv sync --locked`, kompilacja, `pytest` na PostgreSQL 16), osobny E2E zakupu na rzeczywistym API i PostgreSQL oraz infrastruktura (`terraform fmt`, `validate`). Raporty i materiały z błędów są zapisywane jako artefakty.
 4. **CI status** – zbiorczy status wymagany przez ochronę gałęzi `main`; scalenie jest możliwe tylko po sukcesie wszystkich jobów.
 
 Uzupełnieniem są CodeQL (analiza statyczna TypeScript i Python) oraz Dependabot (cotygodniowe aktualizacje zależności i alerty bezpieczeństwa). Opis jobów, zasady ochrony gałęzi i lokalne uruchomienie skanerów: [docs/ci.md](docs/ci.md).
