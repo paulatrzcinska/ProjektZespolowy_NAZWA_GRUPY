@@ -370,6 +370,34 @@ Infrastruktura (S3, CloudFront, ECR, ECS, NLB, użytkownik IAM wdrożenia, punkt
 opisana w Terraform w [`infra/terraform`](infra/terraform). Szczegóły:
 [docs/deployment.md](docs/deployment.md).
 
+## Reguły bezpieczeństwa sieci (Blok 9, E5)
+
+Poniższa tabela opisuje reguły inbound i outbound zapisane w Terraform dla
+trzech warstw aplikacji. Porty odpowiadają domyślnym wartościom
+`app_port=8000` i `db_port=5432`.
+
+| Warstwa / grupa | Inbound: protokół, port, źródło | Outbound: protokół, port, cel |
+| --- | --- | --- |
+| Publiczny Web: CloudFront (poza VPC, bez SG) | HTTP 80 z przekierowaniem na HTTPS; HTTPS 443 z Internetu | HTTPS do prywatnego S3 przez OAC; HTTP 80 do wewnętrznego NLB przez origin VPC |
+| Web w VPC: NLB, `web-sg` | TCP 80 i 443 z `0.0.0.0/0`; NLB jest **internal**, listener działa na 80 | Wszystkie protokoły i porty do `0.0.0.0/0`; komunikacja z API i healthcheck używają TCP 8000 do `app-sg` |
+| App: ECS Fargate, `app-sg` | TCP 8000 **tylko z `web-sg`** | Wszystkie protokoły i porty do `0.0.0.0/0`; wymagane połączenia: TCP 5432 do `db-sg` oraz TCP 443 do endpointów AWS i S3 |
+| DB: RDS PostgreSQL, `db-sg` | TCP 5432 **tylko z `app-sg`** | TCP 5432 do `app-sg`; ta reguła nie jest potrzebna do odpowiedzi na połączenia inicjowane przez aplikację |
+| Usługi pomocnicze: endpointy VPC, `vpce-sg` | TCP 443 tylko z `app-sg` | Brak jawnych reguł w Terraform; odpowiedzi na dozwolone połączenia są dopuszczane stanowo |
+
+Security Groups są stanowe: odpowiedzi na dozwolone połączenia nie wymagają
+osobnego otwierania portów. W konfiguracji grup projektu nie ma reguł wejściowych
+SSH 22 ani RDP 3389, ani publicznego dostępu do portów 8000 i 5432 przez IPv4
+lub IPv6. Backend i RDS nie mają publicznych adresów IP. Podsieci prywatne
+nie mają trasy domyślnej do Internetu; backend korzysta z endpointów VPC.
+
+Szerokie reguły outbound `web-sg` i `app-sg` pozostają ograniczeniem obecnej
+konfiguracji. Tabela przedstawia stan opisany w kodzie, a nie deklarację
+minimalnych uprawnień dla całego ruchu wychodzącego.
+
+Źródła reguł i przypisań: [main.tf](infra/terraform/main.tf),
+[app.tf](infra/terraform/app.tf), [web.tf](infra/terraform/web.tf)
+i [endpoints.tf](infra/terraform/endpoints.tf).
+
 ## Organizacja pracy
 
 - zadania prowadzimy w GitHub Projects (tablica Kanban),
