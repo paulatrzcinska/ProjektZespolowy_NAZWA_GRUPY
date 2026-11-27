@@ -4,5 +4,6 @@ from pydantic import BaseModel
 
 
 class HealthResponse(BaseModel):
-    status: Literal["ok"] = "ok"
+    status: Literal["UP", "DOWN"] = "UP"
+    database: Literal["UP", "DOWN", "SKIPPED"] = "SKIPPED"
     version: str = "dev"

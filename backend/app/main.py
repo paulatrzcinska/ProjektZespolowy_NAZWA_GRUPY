@@ -7,6 +7,7 @@ from app.api import health
 from app.config import get_settings
 from app.core.application import api_router, configure_runtime
 from app.core.errors import InternalErrorMiddleware, use_400_for_validation_errors
+from app.core.telemetry import RequestTelemetryMiddleware
 from app.database import engine
 
 
@@ -55,6 +56,7 @@ def create_app() -> FastAPI:
     app.include_router(health.router)
     app.include_router(api_router(), prefix=settings.api_v1_prefix)
     configure_runtime(app)
+    app.add_middleware(RequestTelemetryMiddleware, api_prefix=settings.api_v1_prefix)
     use_400_for_validation_errors(app)
     return app
 
