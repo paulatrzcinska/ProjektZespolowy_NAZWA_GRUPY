@@ -399,158 +399,107 @@ minimalnych uprawnień dla całego ruchu wychodzącego.
 [app.tf](infra/terraform/app.tf), [web.tf](infra/terraform/web.tf)
 i [endpoints.tf](infra/terraform/endpoints.tf).
 
-## FinOps i monitoring (Blok 10)
+## FinOps i monitoring
 
-Konfiguracja opisana poniżej wymaga wdrożenia backendu oraz wykonania kroków
-w AWS. Samo scalenie README nie tworzy budżetu ani dashboardu. Region zasobów:
-`eu-north-1`; Billing jest panelem globalnym.
+Monitoring obejmuje dostępność API i PostgreSQL, logi aplikacyjne oraz zużycie
+zasobów ECS Fargate w regionie `eu-north-1`. Kontrola kosztów opiera się na
+AWS Budgets. Konfiguracja backendu i eksportu logów RDS jest wersjonowana
+w repozytorium; budżet, odbiorcy alertów, dashboard i retencja logów RDS
+są zarządzane osobno w AWS. Ich aktywacja nie wynika z samego scalenia kodu.
 
-### E1 — budżet i alerty e-mail
+### Budżet i kontrola kosztów
 
-Właściciel konta (Paula) lub osoba z dostępem do Billing wykonuje:
+Przyjęty model kontroli kosztów to miesięczny budżet typu Cost Budget
+obejmujący konto projektu, z powiadomieniami e-mail przy 50%, 80% i 100%
+rzeczywistego kosztu. Kwotę budżetu i adresatów ustala właściciel konta;
+repozytorium nie zawiera danych odbiorców ani potwierdzenia aktywacji alertów.
+Wyłączenie kredytów i refundacji z kalkulacji pozwala obserwować koszt usług
+przed jego pokryciem kredytami AWS.
 
-1. **Billing and Cost Management → Budgets → Create budget → Customize
-   (advanced)**. Wybierz **Cost budget**, nazwę `pz-monthly`, okres miesięczny,
-   cykliczny, kwotę stałą. Przykład z zajęć: **10 USD/miesiąc**; dobierz
-   rzeczywisty limit do planowanego czasu działania zasobów.
-2. Zakres: całe konto projektu. W opcjach kosztu wyłącz uwzględnianie kredytów
-   i refundacji, jeśli chcesz mierzyć koszt usług przed ich pokryciem kredytami.
-   Bez tego kredyty mogą maskować zużycie. Sprawdź podgląd zakresu budżetu.
-3. Dodaj trzy alerty na **Actual cost**, progi procentowe **50%, 80%, 100%**
-   (dla 10 USD: 5, 8 i 10 USD). Do **każdego** dodaj e-mail PM-a i członków
-   zespołu. Utwórz budżet, sprawdź zapisane progi i listy odbiorców.
-4. Zrób zrzut szczegółów aktywnego budżetu, progów i odbiorców. Jeśli panel
-   jest niedostępny dla członka Team, czynność wykonuje właściciel konta.
-   Nie włączaj Organizations ani nie zmieniaj planu konta.
+Alerty mają charakter informacyjny i nie zatrzymują zasobów. Dane rozliczeniowe
+mogą docierać z opóźnieniem. Główne składniki kosztu infrastruktury to RDS,
+NLB, endpointy VPC i ECS Fargate. Zmniejszenie liczby zadań ECS do zera ogranicza
+koszt kontenerów, ale nie eliminuje opłat za pozostałe zasoby.
 
-Budżet wysyła powiadomienia, **nie zatrzymuje usług**. Dane rozliczeniowe
-i alerty mają opóźnienie; utworzenie budżetu nie gwarantuje natychmiastowego
-maila. Nie generuj sztucznego kosztu, aby wywołać alert. Przy 80% sprawdź
-Billing → Bills/Cost Explorer, szczególnie NLB, endpointy VPC, Fargate i RDS.
-Ustawienie ECS desired count na 0 nie zatrzymuje opłat za NLB, endpointy czy RDS.
+### Dostępność API i bazy danych
 
-### E2 — healthcheck API i bazy danych
-
-`GET /health` w `API_MODE=live` pobiera połączenie z puli i wykonuje `SELECT 1`
-na PostgreSQL kontem aplikacji. Sprawdzenie ma limit 1 sekundy. Sukces:
+Endpoint [GET /health](https://d295uboxigcnkp.cloudfront.net/health) w trybie
+`API_MODE=live` pobiera połączenie z puli i wykonuje `SELECT 1` na PostgreSQL
+kontem aplikacji. Limit sprawdzenia wynosi 1 sekundę. Udana próba zwraca
+HTTP 200:
 
 ```json
 {"status":"UP","database":"UP","version":"<wdrożony-commit>"}
 ```
 
-Błąd połączenia, zapytania lub timeout: HTTP **500** z `status=DOWN`
-i `database=DOWN`. Odpowiedź nie ujawnia szczegółów błędu ani poświadczeń;
-zawiera `Cache-Control: no-store`. `version` pozostaje zgodne z workflow Deploy.
-W lokalnym trybie kontraktowym baza nie jest używana: HTTP 200 i
-`database=SKIPPED`; taki wynik **nie jest dowodem E2**.
-Sonda sprawdza połączenie i proste zapytanie, nie poprawność migracji ani CRUD.
+Błąd połączenia, zapytania lub timeout powoduje HTTP 500 z `status=DOWN`
+i `database=DOWN`. Odpowiedź nie ujawnia szczegółów błędu ani poświadczeń.
+Nagłówek `Cache-Control: no-store` zapobiega przechowywaniu wyniku w cache,
+a pole `version` pozwala workflow Deploy potwierdzić wersję wdrożenia.
+W lokalnym trybie kontraktowym baza jest pomijana (`database=SKIPPED`).
+Sprawdzenie połączenia nie zastępuje testów migracji ani operacji biznesowych.
 
-Po scaleniu i zielonym CI poczekaj na zakończenie **Actions → Deploy**, następnie:
+Grupa docelowa NLB `pz-api-tg` wykorzystuje sondę HTTP `/health` na porcie
+8000, co 15 sekund, z oczekiwanym kodem 200. Błąd DB wpływa więc na stan
+zdrowia zadania i może uruchomić wymianę zadań ECS lub rollback wdrożenia.
 
-1. Otwórz [publiczny /health](https://d295uboxigcnkp.cloudfront.net/health)
-   w Postmanie (GET) lub przeglądarce. Zrób zrzut JSON z `UP` i kodu HTTP 200.
-2. **EC2 → Target Groups → pz-api-tg → Health checks**: istniejąca sonda NLB
-   ma HTTP, ścieżkę `/health`, port ruchu (8000), oczekiwany kod 200 i interwał
-   15 s. W **Targets** zadanie ma być `healthy`. Nie trzeba tworzyć ALB.
-3. Opcjonalny odczyt w PowerShell:
-   `curl.exe -i https://d295uboxigcnkp.cloudfront.net/health`.
+### Centralne logi
 
-Awaria DB powoduje niezdrową sondę i może uruchomić wymianę zadań ECS lub
-rollback wdrożenia. Nie zatrzymuj produkcyjnej bazy tylko dla zrzutu błędu.
-Przypadek 500 i timeout sprawdzają testy backendu.
+Logi stdout/stderr backendu trafiają przez driver `awslogs` do grupy
+`/ecs/pz-api`, do strumieni `api/api/<task-id>`. Retencja skonfigurowana
+w Terraform wynosi domyślnie 14 dni.
 
-### E3 — centralne logi backendu i PostgreSQL
+Middleware emituje zdarzenia JSON `event=http_request` zawierające kod
+odpowiedzi, klasę statusu (`2xx`, `4xx`, `5xx`), szablon trasy routera,
+flagę `api_request` oraz `duration_ms`. Flaga ma wartość 1 dla ścieżek
+pod prefiksem API (domyślnie `/api/v1/`) i 0 dla pozostałych żądań.
+Czas jest mierzony od wejścia do middleware do wysłania ostatniego fragmentu
+odpowiedzi; nie obejmuje opóźnień CloudFront ani sieci klienta.
+Zdarzenia te nie zawierają treści żądań, nagłówków, query stringów ani
+identyfikatorów z parametrów ścieżki. Pozostałe logi Uvicorn i błędów
+zachowują swój dotychczasowy format.
 
-Backend już korzysta z drivera `awslogs`: grupa **`/ecs/pz-api`**, strumienie
-`api/api/<task-id>`, retencja 14 dni. Nowy middleware dopisuje pojedyncze
-zdarzenia JSON `event=http_request` ze statusem HTTP, klasą statusu, szablonem
-trasy routera, flagą `api_request` (1 dla ścieżek pod `/api/v1/`, 0 dla pozostałych)
-i `duration_ms` (czas od wejścia do middleware do wysłania ostatniego
-fragmentu odpowiedzi, bez opóźnień CloudFront i sieci klienta).
-Te zdarzenia nie zawierają treści żądań, nagłówków, query stringów ani ID
-z parametrów ścieżki. Nie zmienia to formatu pozostałych logów Uvicorn/błędów.
+Konfiguracja RDS deklaruje eksport logów `postgresql` do CloudWatch,
+do grupy `/aws/rds/instance/pz-db/postgresql`. Eksport wymaga zastosowania
+zmiany infrastruktury; workflow Deploy wdraża aplikację, ale nie uruchamia
+Terraform. Docelowa retencja tej grupy wynosi 14 dni i jest ustawiana
+osobno w AWS. Konfiguracja nie włącza rejestrowania wszystkich zapytań SQL
+(`log_statement=all`), co ogranicza objętość logów i zapis danych użytkowników.
 
-1. **CloudWatch → Logs → Log groups → /ecs/pz-api**. Otwórz najnowszy strumień,
-   wywołaj `/health` i `/api/v1/products`, sprawdź nowe zdarzenia. Zrób zrzut.
-2. **RDS → Databases → pz-db → Modify → Log exports**: zaznacz
-   **PostgreSQL log**. Kliknij Continue, przejrzyj podsumowanie (tylko eksport
-   logów, bez dodatkowych zmian instancji) i zatwierdź. Odpowiada temu dodane
-   `enabled_cloudwatch_logs_exports = ["postgresql"]` w `main.tf`.
-   Alternatywnie osoba utrzymująca Terraform wykonuje `plan` i `apply` na
-   istniejącym stanie; workflow Deploy nie uruchamia Terraform.
-3. Po pojawieniu się logów otwórz grupę **`/aws/rds/instance/pz-db/postgresql`**.
-   Ustaw **Retention → 14 days** i otwórz strumień z rzeczywistymi wpisami.
-   Zrób zrzut wpisów oraz retencji. Publikacja może wymagać kilku minut;
-   brak nowych zdarzeń nie jest dowodem awarii eksportu.
+### Dashboard wydajności
 
-Nie włączaj `log_statement=all` na potrzeby zadania: zwiększa objętość logów
-i może zapisywać dane użytkowników. Zrzuty do sprawozdania nie powinny
-ujawniać sekretów ani danych klientów.
+Projekt dashboardu `pz-monitoring` obejmuje cztery wykresy dla usługi
+`pz-api` w klastrze `pz-cluster`:
 
-### E4 — dashboard CPU RAM i czasu odpowiedzi API
+| Wskaźnik | Źródło | Zakres pomiaru |
+| --- | --- | --- |
+| CPU % | ECS `CPUUtilization`, Average | Wykorzystanie przydzielonego CPU |
+| RAM % | ECS `MemoryUtilization`, Average | Wykorzystanie przydzielonej pamięci |
+| Czas odpowiedzi API w ms | Logs Insights, `duration_ms` | Średnia i percentyl 95 w przedziałach minutowych |
+| Liczba odpowiedzi HTTP | Logs Insights, `status_class` | Liczba odpowiedzi według klas statusu w przedziałach minutowych |
 
-Utwórz **CloudWatch → Dashboards → Create dashboard → pz-monitoring**.
-Wszystkie widgety ustaw dla `eu-north-1`. Używamy standardowych metryk ECS
-oraz Logs Insights, bez włączania Container Insights lub dodatkowych metryk
-CloudFront. NLB nie udostępnia HTTP `TargetResponseTime` znanego z ALB.
+Standardowe metryki ECS są publikowane co minutę dla działających zadań.
+Wykresy API bazują na zdarzeniach `http_request` z `api_request=1`, dzięki
+czemu sondy `/health` nie zaniżają czasu odpowiedzi operacji biznesowych.
+Dane obejmują żądania, które dotarły do backendu, a nie odrzucenia na CloudFront.
+Brak serii danej klasy statusu oznacza brak takich zdarzeń w wybranym okresie.
 
-1. **Add widget → Line → Metrics → ECS → ClusterName, ServiceName**.
-   Wybierz `pz-cluster` / `pz-api` i **CPUUtilization**, statystykę Average,
-   okres 1 minute. Nazwij wykres „API CPU %”.
-2. Dodaj analogiczny wykres **MemoryUtilization**, „API RAM %”.
-   Metryki procentowe dotyczą przydzielonych zasobów zadania. Są publikowane
-   co minutę, gdy usługa ma działające zadania; to nie pomiar ciągły.
-3. **Logs → Logs Insights**, grupa `/ecs/pz-api`, zakres ostatnich 15 minut,
-   język **Logs Insights QL**. Uruchom zapytanie czasu odpowiedzi:
+Dashboard nie jest tworzony przez Terraform. Jego konfiguracja w CloudWatch
+korzysta ze standardowych metryk ECS i zapytań Logs Insights, bez wymogu
+włączania Container Insights lub dodatkowych metryk CloudFront.
+Każde odświeżenie widgetu Logs Insights uruchamia nowe zapytanie.
+Ograniczenie zakresu czasowego i częstotliwości odświeżania oraz retencja
+logów pozwalają kontrolować koszty monitoringu. Przesyłanie i przechowywanie
+logów, zapytania i dashboard mogą generować opłaty po przekroczeniu dostępnych
+limitów; kredyty konta pokrywają koszt, ale nie oznaczają braku zużycia usług.
 
-   ```text
-   filter event = "http_request" and api_request = 1
-   | stats avg(duration_ms) as avg_ms, pct(duration_ms, 95) as p95_ms by bin(1m)
-   ```
-
-   Wybierz **Visualization → Line → Add to dashboard → pz-monitoring**,
-   nazwę „API czas odpowiedzi ms”. Zapytanie obejmuje API, bez sond `/health`.
-4. W tej samej grupie uruchom zapytanie liczby odpowiedzi według klas:
-
-   ```text
-   filter event = "http_request" and api_request = 1
-   | stats count(*) as requests by bin(1m), status_class
-   ```
-
-   Dodaj wykres „API odpowiedzi HTTP 2xx 4xx 5xx” do dashboardu.
-   Klasa pojawia się po wystąpieniu zdarzeń; brak serii 5xx oznacza brak takich
-   wpisów w wybranym czasie, a nie konieczność wywołania awarii.
-5. Wygeneruj kilka zwykłych żądań: otwórz katalog i odśwież go albo wywołaj
-   `curl.exe -i https://d295uboxigcnkp.cloudfront.net/api/v1/products`.
-   Żądanie bez logowania do `/api/v1/auth/me` powinno dać 401 i serię 4xx.
-   Nie wykonuj testu obciążeniowego ani sztucznej awarii produkcji.
-6. Zapisz dashboard, ustaw zakres ostatniej godziny i odświeżanie 1–5 minut.
-   Po napłynięciu danych zrób zrzut czterech wykresów z widocznym zakresem czasu.
-
-Nowe zdarzenia JSON pojawią się dopiero po wdrożeniu backendu z tego bloku.
-Przy pustych wykresach sprawdź region, działające zadanie, czas oraz logi
-z `event=http_request`. Dashboard zawiera dane backendu, nie żądania odrzucone
-na CloudFront. Każde odświeżenie widgetu Logs Insights wykonuje nowe zapytanie.
-
-### Koszty i dowody zaliczenia
-
-Standardowe metryki ECS nie wymagają Container Insights. Przechowywanie
-i przesyłanie logów, zapytania Logs Insights oraz dashboard mogą generować
-koszty po przekroczeniu dostępnych limitów. Sprawdź bieżące wykorzystanie
-w Billing; nie zakładaj, że kredyty oznaczają brak kosztu usług. Ogranicz zakres
-zapytań i częstotliwość odświeżania, pozostaw retencję logów 14 dni i zamknij
-dashboard po demonstracji. Nie zmieniaj planu konta dla tego zadania.
-
-Do sprawozdania: E1 — budżet, progi, odbiorcy; E2 — HTTP 200, JSON `UP`
-i konfiguracja sondy; E3 — wpisy backendu i bazy w CloudWatch; E4 — dashboard
-z danymi; E5 — ta sekcja README. Przy każdym punkcie opisz własną konfigurację
-lub weryfikację. Nie opisuj samego kodu jako dowodu wdrożenia w AWS.
-
+Implementacja: [healthcheck](backend/app/api/health.py),
+[logowanie pomiarów HTTP](backend/app/core/telemetry.py),
+[logi ECS](infra/terraform/app.tf), [eksport logów RDS](infra/terraform/main.tf).
 Dokumentacja AWS: [Budgets](https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-create.html),
-[eksport logów RDS](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_LogAccess.Concepts.PostgreSQL.html),
+[logi PostgreSQL](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_LogAccess.Concepts.PostgreSQL.html),
 [metryki ECS](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/service_utilization.html),
-[widgety Logs Insights](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_ExportQueryResults.html),
-[cennik CloudWatch](https://aws.amazon.com/cloudwatch/pricing/).
+[Logs Insights](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_ExportQueryResults.html).
 
 ## Organizacja pracy
 
