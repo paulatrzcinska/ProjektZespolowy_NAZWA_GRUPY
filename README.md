@@ -159,7 +159,7 @@ npm run dev
 | --- | --- |
 | [http://localhost:5173](http://localhost:5173) | Aplikacja webowa |
 | [http://127.0.0.1:8000/docs](http://127.0.0.1:8000/docs) | Swagger UI |
-| [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health) | Stan procesu API |
+| [http://127.0.0.1:8000/health](http://127.0.0.1:8000/health) | Stan API i połączenia z bazą w trybie live |
 
 Publiczna aplikacja: [Live URL](https://d295uboxigcnkp.cloudfront.net).
 
@@ -172,7 +172,8 @@ API udostępnia katalog, konta i JWT, koszyk, zamówienia oraz lokalną symulacj
 
 Prefiks poniższych ścieżek: `/api/v1`. Chronione żądania wymagają
 `Authorization: Bearer <access_token>`; dostęp administracyjny sprawdza backend.
-Osobny `GET /health` zwraca `200` poza prefiksem API.
+Osobny `GET /health` poza prefiksem API zwraca `200` po udanym sprawdzeniu bazy
+w trybie live albo `500` przy błędzie/timeout (szczegóły w sekcji monitoringu).
 
 | Metoda | Endpoint | Dostęp | Sukces | Działanie |
 | --- | --- | --- | --- | --- |
@@ -370,7 +371,7 @@ Infrastruktura (S3, CloudFront, ECR, ECS, NLB, użytkownik IAM wdrożenia, punkt
 opisana w Terraform w [`infra/terraform`](infra/terraform). Szczegóły:
 [docs/deployment.md](docs/deployment.md).
 
-## Reguły bezpieczeństwa sieci (Blok 9, E5)
+## Reguły bezpieczeństwa sieci
 
 Poniższa tabela opisuje reguły inbound i outbound zapisane w Terraform dla
 trzech warstw aplikacji. Porty odpowiadają domyślnym wartościom
@@ -397,6 +398,108 @@ minimalnych uprawnień dla całego ruchu wychodzącego.
 Źródła reguł i przypisań: [main.tf](infra/terraform/main.tf),
 [app.tf](infra/terraform/app.tf), [web.tf](infra/terraform/web.tf)
 i [endpoints.tf](infra/terraform/endpoints.tf).
+
+## FinOps i monitoring
+
+Monitoring obejmuje dostępność API i PostgreSQL, logi aplikacyjne oraz zużycie
+zasobów ECS Fargate w regionie `eu-north-1`. Kontrola kosztów opiera się na
+AWS Budgets. Konfiguracja backendu i eksportu logów RDS jest wersjonowana
+w repozytorium; budżet, odbiorcy alertów, dashboard i retencja logów RDS
+są zarządzane osobno w AWS. Ich aktywacja nie wynika z samego scalenia kodu.
+
+### Budżet i kontrola kosztów
+
+Przyjęty model kontroli kosztów to miesięczny budżet typu Cost Budget
+obejmujący konto projektu, z powiadomieniami e-mail przy 50%, 80% i 100%
+rzeczywistego kosztu. Kwotę budżetu i adresatów ustala właściciel konta;
+repozytorium nie zawiera danych odbiorców ani potwierdzenia aktywacji alertów.
+Wyłączenie kredytów i refundacji z kalkulacji pozwala obserwować koszt usług
+przed jego pokryciem kredytami AWS.
+
+Alerty mają charakter informacyjny i nie zatrzymują zasobów. Dane rozliczeniowe
+mogą docierać z opóźnieniem. Główne składniki kosztu infrastruktury to RDS,
+NLB, endpointy VPC i ECS Fargate. Zmniejszenie liczby zadań ECS do zera ogranicza
+koszt kontenerów, ale nie eliminuje opłat za pozostałe zasoby.
+
+### Dostępność API i bazy danych
+
+Endpoint [GET /health](https://d295uboxigcnkp.cloudfront.net/health) w trybie
+`API_MODE=live` pobiera połączenie z puli i wykonuje `SELECT 1` na PostgreSQL
+kontem aplikacji. Limit sprawdzenia wynosi 1 sekundę. Udana próba zwraca
+HTTP 200:
+
+```json
+{"status":"UP","database":"UP","version":"<wdrożony-commit>"}
+```
+
+Błąd połączenia, zapytania lub timeout powoduje HTTP 500 z `status=DOWN`
+i `database=DOWN`. Odpowiedź nie ujawnia szczegółów błędu ani poświadczeń.
+Nagłówek `Cache-Control: no-store` zapobiega przechowywaniu wyniku w cache,
+a pole `version` pozwala workflow Deploy potwierdzić wersję wdrożenia.
+W lokalnym trybie kontraktowym baza jest pomijana (`database=SKIPPED`).
+Sprawdzenie połączenia nie zastępuje testów migracji ani operacji biznesowych.
+
+Grupa docelowa NLB `pz-api-tg` wykorzystuje sondę HTTP `/health` na porcie
+8000, co 15 sekund, z oczekiwanym kodem 200. Błąd DB wpływa więc na stan
+zdrowia zadania i może uruchomić wymianę zadań ECS lub rollback wdrożenia.
+
+### Centralne logi
+
+Logi stdout/stderr backendu trafiają przez driver `awslogs` do grupy
+`/ecs/pz-api`, do strumieni `api/api/<task-id>`. Retencja skonfigurowana
+w Terraform wynosi domyślnie 14 dni.
+
+Middleware emituje zdarzenia JSON `event=http_request` zawierające kod
+odpowiedzi, klasę statusu (`2xx`, `4xx`, `5xx`), szablon trasy routera,
+flagę `api_request` oraz `duration_ms`. Flaga ma wartość 1 dla ścieżek
+pod prefiksem API (domyślnie `/api/v1/`) i 0 dla pozostałych żądań.
+Czas jest mierzony od wejścia do middleware do wysłania ostatniego fragmentu
+odpowiedzi; nie obejmuje opóźnień CloudFront ani sieci klienta.
+Zdarzenia te nie zawierają treści żądań, nagłówków, query stringów ani
+identyfikatorów z parametrów ścieżki. Pozostałe logi Uvicorn i błędów
+zachowują swój dotychczasowy format.
+
+Konfiguracja RDS deklaruje eksport logów `postgresql` do CloudWatch,
+do grupy `/aws/rds/instance/pz-db/postgresql`. Eksport wymaga zastosowania
+zmiany infrastruktury; workflow Deploy wdraża aplikację, ale nie uruchamia
+Terraform. Docelowa retencja tej grupy wynosi 14 dni i jest ustawiana
+osobno w AWS. Konfiguracja nie włącza rejestrowania wszystkich zapytań SQL
+(`log_statement=all`), co ogranicza objętość logów i zapis danych użytkowników.
+
+### Dashboard wydajności
+
+Projekt dashboardu `pz-monitoring` obejmuje cztery wykresy dla usługi
+`pz-api` w klastrze `pz-cluster`:
+
+| Wskaźnik | Źródło | Zakres pomiaru |
+| --- | --- | --- |
+| CPU % | ECS `CPUUtilization`, Average | Wykorzystanie przydzielonego CPU |
+| RAM % | ECS `MemoryUtilization`, Average | Wykorzystanie przydzielonej pamięci |
+| Czas odpowiedzi API w ms | Logs Insights, `duration_ms` | Średnia i percentyl 95 w przedziałach minutowych |
+| Liczba odpowiedzi HTTP | Logs Insights, `status_class` | Liczba odpowiedzi według klas statusu w przedziałach minutowych |
+
+Standardowe metryki ECS są publikowane co minutę dla działających zadań.
+Wykresy API bazują na zdarzeniach `http_request` z `api_request=1`, dzięki
+czemu sondy `/health` nie zaniżają czasu odpowiedzi operacji biznesowych.
+Dane obejmują żądania, które dotarły do backendu, a nie odrzucenia na CloudFront.
+Brak serii danej klasy statusu oznacza brak takich zdarzeń w wybranym okresie.
+
+Dashboard nie jest tworzony przez Terraform. Jego konfiguracja w CloudWatch
+korzysta ze standardowych metryk ECS i zapytań Logs Insights, bez wymogu
+włączania Container Insights lub dodatkowych metryk CloudFront.
+Każde odświeżenie widgetu Logs Insights uruchamia nowe zapytanie.
+Ograniczenie zakresu czasowego i częstotliwości odświeżania oraz retencja
+logów pozwalają kontrolować koszty monitoringu. Przesyłanie i przechowywanie
+logów, zapytania i dashboard mogą generować opłaty po przekroczeniu dostępnych
+limitów; kredyty konta pokrywają koszt, ale nie oznaczają braku zużycia usług.
+
+Implementacja: [healthcheck](backend/app/api/health.py),
+[logowanie pomiarów HTTP](backend/app/core/telemetry.py),
+[logi ECS](infra/terraform/app.tf), [eksport logów RDS](infra/terraform/main.tf).
+Dokumentacja AWS: [Budgets](https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-create.html),
+[logi PostgreSQL](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_LogAccess.Concepts.PostgreSQL.html),
+[metryki ECS](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/service_utilization.html),
+[Logs Insights](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_ExportQueryResults.html).
 
 ## Organizacja pracy
 

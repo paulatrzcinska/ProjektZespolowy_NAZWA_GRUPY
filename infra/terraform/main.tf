@@ -226,6 +226,8 @@ resource "aws_db_instance" "main" {
   performance_insights_enabled          = true
   performance_insights_retention_period = 7 # bezpłatne
 
+  enabled_cloudwatch_logs_exports = ["postgresql"]
+
   lifecycle {
     # Wersję minor podnosi AWS (auto_minor_version_upgrade), np. 16.9 -> 16.10.
     # Bez tego Terraform próbowałby "cofnąć" bazę do wartości z kodu ("16").

@@ -6,7 +6,7 @@ def test_health(client: TestClient) -> None:
     response = client.get("/health")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "version": "dev"}
+    assert response.json() == {"status": "UP", "database": "SKIPPED", "version": "dev"}
 
 
 def test_health_reports_deployed_version(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -26,7 +26,7 @@ def test_health_reports_deployed_version(monkeypatch: pytest.MonkeyPatch) -> Non
         get_settings.cache_clear()
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "version": "3f2a9c1d"}
+    assert response.json() == {"status": "UP", "database": "SKIPPED", "version": "3f2a9c1d"}
 
 
 def test_unhandled_error_returns_json_500(

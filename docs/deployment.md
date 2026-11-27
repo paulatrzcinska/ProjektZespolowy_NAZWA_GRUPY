@@ -111,7 +111,7 @@ flowchart LR
   z sekretu Secrets Manager `pz/api`. Połączenie z RDS jest szyfrowane i
   weryfikowane (`DATABASE_SSL_CA` wskazuje pakiet CA Amazon RDS wbudowany w obraz).
 - **Wersja wdrożenia** - `APP_VERSION` (backend) i `VITE_APP_VERSION` (frontend) to
-  hash commita: `GET /health` zwraca `{"status":"ok","version":"<sha>"}`, frontend
+  hash commita: `GET /health` w trybie live zwraca `{"status":"UP","database":"UP","version":"<sha>"}` po udanym `SELECT 1` (błąd DB: HTTP 500), frontend
   publikuje `/version.json` i pokazuje skróconą wersję w stopce.
 
 ## Obraz backendu
