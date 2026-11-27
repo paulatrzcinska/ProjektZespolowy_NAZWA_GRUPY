@@ -371,7 +371,7 @@ Infrastruktura (S3, CloudFront, ECR, ECS, NLB, użytkownik IAM wdrożenia, punkt
 opisana w Terraform w [`infra/terraform`](infra/terraform). Szczegóły:
 [docs/deployment.md](docs/deployment.md).
 
-## Reguły bezpieczeństwa sieci (Blok 9, E5)
+## Reguły bezpieczeństwa sieci
 
 Poniższa tabela opisuje reguły inbound i outbound zapisane w Terraform dla
 trzech warstw aplikacji. Porty odpowiadają domyślnym wartościom
