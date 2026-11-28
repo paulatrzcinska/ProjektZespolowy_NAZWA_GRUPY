@@ -1,4 +1,5 @@
 import { apiUrl } from "./config";
+import { errorMessage, NETWORK_ERROR } from "./errorMessages";
 import { getStoredToken } from "./token";
 
 export class ApiError extends Error {
@@ -10,27 +11,6 @@ export class ApiError extends Error {
     super(message);
     this.name = "ApiError";
   }
-}
-
-function parseDetail(body: unknown): string {
-  if (body && typeof body === "object" && "detail" in body) {
-    const detail = (body as { detail: unknown }).detail;
-    if (typeof detail === "string") return detail;
-    if (Array.isArray(detail)) {
-      return detail
-        .map((item) => {
-          if (item && typeof item === "object" && "msg" in item) {
-            const field = Array.isArray(item.loc)
-              ? item.loc.filter((part: unknown) => part !== "body").join(".")
-              : "";
-            return `${field ? `${field}: ` : ""}${String(item.msg)}`;
-          }
-          return String(item);
-        })
-        .join("; ");
-    }
-  }
-  return "Nie udało się wykonać operacji. Spróbuj ponownie.";
 }
 
 let onUnauthorized: (() => void) | null = null;
@@ -53,17 +33,24 @@ export async function apiResponse<T>(
   if (body !== undefined && !(body instanceof FormData))
     headers.set("Content-Type", "application/json");
   if (token) headers.set("Authorization", `Bearer ${token}`);
-  const response = await fetch(apiUrl(path), {
-    ...rest,
-    headers,
-    cache: auth ? "no-store" : "default",
-    body:
-      body === undefined
-        ? undefined
-        : body instanceof FormData
-          ? body
-          : JSON.stringify(body),
-  });
+  let response: Response;
+  try {
+    response = await fetch(apiUrl(path), {
+      ...rest,
+      headers,
+      cache: auth ? "no-store" : "default",
+      body:
+        body === undefined
+          ? undefined
+          : body instanceof FormData
+            ? body
+            : JSON.stringify(body),
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
+    // fetch rejects without a response when the network or the server is unreachable.
+    throw new ApiError(NETWORK_ERROR, 0, null);
+  }
   const text = response.status === 204 ? "" : await response.text();
   let data: unknown = null;
   if (text) {
@@ -76,7 +63,7 @@ export async function apiResponse<T>(
   if (!response.ok) {
     if (auth && response.status === 401 && token === getStoredToken())
       onUnauthorized?.();
-    throw new ApiError(parseDetail(data), response.status, data);
+    throw new ApiError(errorMessage(response.status, data), response.status, data);
   }
   return {
     data: (response.status === 204 ? undefined : data) as T,
