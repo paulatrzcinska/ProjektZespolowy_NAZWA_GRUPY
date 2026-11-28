@@ -1,4 +1,8 @@
-"""Optional catalogue fixtures. Run with: uv run python -m app.scripts.seed."""
+"""Optional catalogue fixtures. Run with: uv run python -m app.scripts.seed.
+
+The catalogue matches the frontend mock data (web/src/mocks/data), so the demo
+looks the same in mock mode, locally and in AWS.
+"""
 
 import asyncio
 from decimal import Decimal
@@ -11,61 +15,146 @@ from app.database import AsyncSessionLocal, engine
 from app.models import Category, Product
 
 CATEGORIES = [
-    ("Sofy i fotele", "sofy-i-fotele", "Meble wypoczynkowe do salonu."),
-    ("Stoły i krzesła", "stoly-i-krzesla", "Jadalnia i kącik jadalny."),
-    ("Sypialnia", "sypialnia", "Łóżka, szafy i dodatki do sypialni."),
-    ("Przechowywanie", "przechowywanie", "Komody, regały, szafy."),
+    (
+        "Legowiska",
+        "legowiska",
+        "Miękkie legowiska i maty dla psów każdej wielkości.",
+    ),
+    (
+        "Smycze i obroże",
+        "smycze-i-obroze",
+        "Akcesoria spacerowe: smycze, obroże i szelki.",
+    ),
+    ("Zabawki", "zabawki", "Gryzaki, piłki i zabawki interaktywne."),
+    (
+        "Miski i karmienie",
+        "miski-i-karmienie",
+        "Miski, poidła i maty pod miski.",
+    ),
 ]
 
+_IMG = "https://images.unsplash.com/photo-{}?auto=format&fit=crop&w=800&q=70"
+
+# (name, slug, description, price, stock, category slug, Unsplash photo id)
 PRODUCTS = [
-    ("Kanapa modułowa LUNA", "kanapa-modulowa-luna", "6499.00", 6, "sofy-i-fotele"),
     (
-        "Fotel LOFT z podnóżkiem",
-        "fotel-loft-z-podnozkiem",
-        "2899.00",
-        8,
-        "sofy-i-fotele",
-    ),
-    (
-        "Narożnik skórzany BERGEN",
-        "naroznik-skorzany-bergen",
-        "12499.00",
-        3,
-        "sofy-i-fotele",
-    ),
-    ("Stół dębowy NORD 180", "stol-debowy-nord-180", "3299.00", 4, "stoly-i-krzesla"),
-    (
-        "Krzesło tapicerowane VELA (2 szt.)",
-        "krzeslo-tapicerowane-vela-para",
-        "1198.00",
-        15,
-        "stoly-i-krzesla",
-    ),
-    (
-        "Stolik kawowy MARMUR 80",
-        "stolik-kawowy-marmur-80",
-        "899.00",
+        "Legowisko Cloud M",
+        "legowisko-cloud-m",
+        "Ortopedyczne legowisko z pianki memory, zdejmowany pokrowiec do prania "
+        "w 40°C. Rozmiar M (80×60 cm).",
+        "189.00",
         12,
-        "stoly-i-krzesla",
+        "legowiska",
+        "1601758123927-4f7acc7da589",
     ),
     (
-        "Łóżko kontynentalne AURORA 160",
-        "lozko-kontynentalne-aurora-160",
-        "4599.00",
-        5,
-        "sypialnia",
+        "Legowisko Cloud L",
+        "legowisko-cloud-l",
+        "Wersja L (100×75 cm) legowiska Cloud dla dużych ras.",
+        "249.00",
+        3,
+        "legowiska",
+        "1581888227599-779811939961",
     ),
-    ("Szafa przesuwna SKY 240", "szafa-przesuwna-sky-240", "3899.00", 2, "sypialnia"),
-    ("Komoda RETRO 3S", "komoda-retro-3s", "1899.00", 7, "przechowywanie"),
     (
-        "Regał metalowy INDUSTRIAL",
-        "regal-metalowy-industrial",
-        "749.00",
+        "Mata chłodząca",
+        "mata-chlodzaca",
+        "Żelowa mata chłodząca na upalne dni, bez prądu i wody.",
+        "79.90",
+        0,
+        "legowiska",
+        "1762547450600-5a57ea7abc54",
+    ),
+    (
+        "Smycz taśmowa 2 m",
+        "smycz-tasmowa-2m",
+        "Wytrzymała smycz z taśmy poliestrowej z karabińczykiem obrotowym.",
+        "39.00",
+        40,
+        "smycze-i-obroze",
+        "1708062270853-ee7c66b69f07",
+    ),
+    (
+        "Szelki Guard S",
+        "szelki-guard-s",
+        "Szelki typu guard z odblaskami, regulowane w 4 punktach.",
+        "89.00",
+        15,
+        "smycze-i-obroze",
+        "1581597359121-0f69057e2fb1",
+    ),
+    (
+        "Obroża skórzana brąz",
+        "obroza-skorzana-braz",
+        "Obroża z naturalnej skóry z mosiężną klamrą.",
+        "69.00",
+        8,
+        "smycze-i-obroze",
+        "1546687813-3fcc1c363a07",
+    ),
+    (
+        "Piłka Kong Classic",
+        "pilka-kong-classic",
+        "Gumowa piłka do aportu i wypełniania smakołykami.",
+        "45.00",
+        25,
+        "zabawki",
+        "1508948956644-0017e845d797",
+    ),
+    (
+        "Gryzak sznurowy",
+        "gryzak-sznurowy",
+        "Bawełniany gryzak do przeciągania, wspomaga czyszczenie zębów.",
+        "24.90",
+        2,
+        "zabawki",
+        "1774440865489-c7827c96aabc",
+    ),
+    (
+        "Mata węchowa",
+        "mata-wechowa",
+        "Zabawka interaktywna rozwijająca węch, do prania w pralce.",
+        "59.00",
         10,
-        "przechowywanie",
+        "zabawki",
+        "1714068691252-685e1426c055",
     ),
-    ("Pufa welurowa DOT", "pufa-welurowa-dot", "449.00", 20, "sofy-i-fotele"),
-    ("Ława dębowa MINI", "lawa-debowa-mini", "699.00", 9, "stoly-i-krzesla"),
+    (
+        "Miska stalowa 1,5 l",
+        "miska-stalowa-1-5l",
+        "Miska ze stali nierdzewnej z antypoślizgowym spodem.",
+        "29.00",
+        30,
+        "miski-i-karmienie",
+        "1695023267262-7f4ab64152b2",
+    ),
+    (
+        "Miska spowalniająca",
+        "miska-spowalniajaca",
+        "Miska z labiryntem spowalniająca jedzenie łapczywych psów.",
+        "34.90",
+        18,
+        "miski-i-karmienie",
+        "1714068691210-073dc52c6c1d",
+    ),
+    (
+        "Poidło podróżne 500 ml",
+        "poidlo-podrozne-500ml",
+        "Składane poidło z butelką na spacery i wycieczki.",
+        "32.00",
+        22,
+        "miski-i-karmienie",
+        "1541887796712-054f4b0f8e5d",
+    ),
+    (
+        "Miska ceramiczna w łapki",
+        "miska-ceramiczna-w-lapki",
+        "Ceramiczna miska z wzorem w łapki, ciężka i stabilna, do zmywarki.",
+        "22.00",
+        50,
+        "miski-i-karmienie",
+        "1679224106783-c21b1841412a",
+    ),
 ]
 
 
@@ -79,14 +168,16 @@ async def seed_catalogue(session: AsyncSession) -> None:
     category_ids = dict(
         (await session.execute(select(Category.slug, Category.id))).all()
     )
-    for name, slug, price, stock, category_slug in PRODUCTS:
+    for name, slug, description, price, stock, category_slug, photo in PRODUCTS:
         await session.execute(
             insert(Product)
             .values(
                 name=name,
                 slug=slug,
+                description=description,
                 price=Decimal(price),
                 stock_quantity=stock,
+                image_url=_IMG.format(photo),
                 category_id=category_ids[category_slug],
                 is_active=True,
             )

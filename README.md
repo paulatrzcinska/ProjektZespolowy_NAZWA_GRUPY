@@ -262,8 +262,8 @@ oraz podgląd na 4175. Nie trzeba wcześniej uruchamiać serwerów.
 
 Poniższe polecenia Bash/WSL uruchamiają osobną lokalną bazę testową (Docker),
 migracje i katalog demonstracyjny. Nie wymagają konta administratora.
-Test tworzy klienta z unikalnym e-mailem, kupuje dwie sztuki `Pufa welurowa DOT`,
-sprawdza kwotę 898,00 zł, adres dostawy, historię i status zamówienia oraz pusty koszyk.
+Test tworzy klienta z unikalnym e-mailem, kupuje dwie sztuki `Smycz taśmowa 2 m`,
+sprawdza kwotę 78,00 zł, adres dostawy, historię i status zamówienia oraz pusty koszyk.
 
 ```bash
 # Z katalogu głównego; baza wyłącznie do testów, bez trwałego wolumenu.
@@ -301,7 +301,7 @@ docker stop zdechpies-e2e-db
 
 Playwright uruchamia API live na porcie 18001 i frontend na 4176.
 Scenariusz pozostawia klienta i zamówienie w bazie testowej; kolejne uruchomienia
-tworzą nowe konto i zużywają stan produktu. Na świeżej bazie seed zapewnia 20 sztuk.
+tworzą nowe konto i zużywają stan produktu. Na świeżej bazie seed zapewnia 40 sztuk.
 Przy własnej bazie wskaż ją w zmiennych `DB_*` lub `backend/.env` i wykonaj migracje
 oraz seed. Hasła powyżej służą wyłącznie tymczasowemu lokalnemu kontenerowi.
 Instrukcja PowerShell i pozostałe fazy live (`crud`, `restart`, `offline`):
