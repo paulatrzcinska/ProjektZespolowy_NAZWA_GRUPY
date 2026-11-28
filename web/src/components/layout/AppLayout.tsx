@@ -1,5 +1,6 @@
 import { LayoutGrid, Shield, ShoppingBag, UserRound } from "lucide-react";
-import { Link, NavLink, Outlet } from "react-router-dom";
+import { Link, NavLink, Outlet, useLocation } from "react-router-dom";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { PwaStatus } from "./PwaStatus";
 import { useAuth } from "../../auth/AuthContext";
 import { useCart } from "../../hooks/useCart";
@@ -11,6 +12,7 @@ const APP_VERSION = import.meta.env.VITE_APP_VERSION || "dev";
 export function AppLayout() {
   const { user } = useAuth();
   const { cart } = useCart();
+  const location = useLocation();
   const count = cart?.items_count ?? 0;
 
   const navClass = ({ isActive }: { isActive: boolean }) =>
@@ -106,7 +108,9 @@ export function AppLayout() {
       <PwaStatus />
 
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-10 sm:px-6 sm:py-12 lg:px-8 lg:py-14">
-        <Outlet />
+        <ErrorBoundary resetKey={location.pathname}>
+          <Outlet />
+        </ErrorBoundary>
       </main>
 
       <footer className="mt-auto border-t border-line bg-surface/50 py-10">
