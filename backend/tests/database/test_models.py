@@ -290,9 +290,9 @@ async def test_seed_is_repeatable_and_preserves_changes(
     await seed_catalogue(db_session)
     await db_session.commit()
     product = await db_session.scalar(
-        select(Product).where(Product.slug == "kanapa-modulowa-luna")
+        select(Product).where(Product.slug == "legowisko-cloud-m")
     )
-    product.price = Decimal("6000.00")
+    product.price = Decimal("150.00")
     product.stock_quantity = 1
     await db_session.commit()
     await seed_catalogue(db_session)
@@ -300,6 +300,6 @@ async def test_seed_is_repeatable_and_preserves_changes(
     await db_session.refresh(product)
 
     assert await db_session.scalar(select(func.count()).select_from(Category)) == 4
-    assert await db_session.scalar(select(func.count()).select_from(Product)) == 12
+    assert await db_session.scalar(select(func.count()).select_from(Product)) == 13
     assert await db_session.scalar(select(func.count()).select_from(User)) == 0
-    assert product.price == Decimal("6000.00") and product.stock_quantity == 1
+    assert product.price == Decimal("150.00") and product.stock_quantity == 1

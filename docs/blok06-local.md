@@ -179,7 +179,7 @@ i wideo interfejsu z zamaskowanym hasłem. Nie wskazuj produkcyjnej bazy.
 W ograniczonym Windows można użyć Vite `--configLoader runner` dla build/preview;
 nie zastępuje to typecheck. CI przygotowuje osobną bazę i uruchamia fazę `purchase`.
 Ta faza nie wymaga `E2E_ADMIN_EMAIL` ani `E2E_ADMIN_PASSWORD`; tworzy własnego
-klienta przez UI, używa produktu `Pufa welurowa DOT` z seeda i pozostawia zamówienie.
+klienta przez UI, używa produktu `Smycz taśmowa 2 m` z seeda i pozostawia zamówienie.
 W PowerShell, z `web`, po przygotowaniu dedykowanej bazy, migracji i seeda:
 
 ```powershell

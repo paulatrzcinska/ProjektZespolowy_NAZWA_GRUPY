@@ -128,7 +128,8 @@ Po migracjach i nadaniu uprawnień, z katalogu `backend`:
 uv run python -m app.scripts.seed
 ```
 
-Seed dodaje 4 kategorie i 12 produktów. Można uruchamiać go wielokrotnie:
+Seed dodaje 4 kategorie i 13 produktów dla psów (z opisami i zdjęciami z Unsplash,
+tak jak dane mock frontendu). Można uruchamiać go wielokrotnie:
 unikalne slugi zapobiegają duplikatom, a istniejące ceny i stany magazynowe
 pozostają bez zmian. Nie tworzy użytkowników, haseł, zamówień ani płatności.
 

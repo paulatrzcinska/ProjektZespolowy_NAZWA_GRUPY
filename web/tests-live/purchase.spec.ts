@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import type { OrderDetail } from "../src/api/types";
 
 test("customer purchases a product and finds the persisted order", async ({ page }) => {
-  const productName = "Pufa welurowa DOT";
+  const productName = "Smycz taśmowa 2 m";
   let order: OrderDetail;
 
   await test.step("Choose a product from the real catalogue", async () => {
@@ -28,7 +28,7 @@ test("customer purchases a product and finds the persisted order", async ({ page
     await expect(page).toHaveURL(/\/cart$/);
     await page.reload();
     await expect(page.getByRole("main").getByRole("link", { name: productName })).toBeVisible();
-    await expect(page.locator("aside")).toContainText(/898,00\s*zł/);
+    await expect(page.locator("aside")).toContainText(/78,00\s*zł/);
     await page.getByRole("link", { name: "Przejdź do realizacji" }).click();
   });
 
@@ -50,7 +50,7 @@ test("customer purchases a product and finds the persisted order", async ({ page
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
     );
     order = await response.json();
-    expect(order.total_amount).toBe("898.00");
+    expect(order.total_amount).toBe("78.00");
     expect(order.status).toBe("pending");
     expect(order.items).toHaveLength(1);
     expect(order.items[0]).toMatchObject({ product_name_snapshot: productName, quantity: 2 });
@@ -62,7 +62,7 @@ test("customer purchases a product and finds the persisted order", async ({ page
     await expect(page.getByRole("main")).toContainText("Jan Testowy");
     await expect(page.getByRole("main")).toContainText("Testowa 1");
     await expect(page.getByRole("main")).toContainText(productName);
-    await expect(page.getByRole("main")).toContainText(/898,00\s*zł/);
+    await expect(page.getByRole("main")).toContainText(/78,00\s*zł/);
     await page.getByRole("link", { name: "Historia zamówień", exact: true }).click();
     await expect(page.getByText(`Zamówienie #${order.id}`, { exact: true })).toBeVisible();
     await page.getByRole("link", { name: "Status", exact: true }).click();
