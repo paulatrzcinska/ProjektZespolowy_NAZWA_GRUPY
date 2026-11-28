@@ -130,13 +130,16 @@ test("checkout submits shipping and a stable retry UUID without client prices", 
     if (keys.length === 1)
       return route.fulfill({
         status: 503,
-        json: { detail: "Spróbuj ponownie" },
+        json: { detail: "Service Unavailable" },
       });
     return route.continue();
   });
   await page.getByRole("button", { name: "Złóż zamówienie" }).click();
   await expect(
-    page.getByText("Spróbuj ponownie", { exact: true }),
+    page.getByText(
+      "Serwer jest chwilowo niedostępny. Spróbuj ponownie za chwilę.",
+      { exact: true },
+    ),
   ).toBeVisible();
   const created = page.waitForResponse(
     (response) =>
@@ -243,12 +246,14 @@ test("admin category CRUD and conflict handling", async ({ page }) => {
   await page.route("**/api/v1/categories/1", (route) =>
     route.fulfill({
       status: 409,
-      json: { detail: "Kategoria zawiera produkty" },
+      json: { detail: "Category contains products" },
     }),
   );
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: /Usuń/ }).click();
-  await expect(page.getByText("Kategoria zawiera produkty")).toBeVisible();
+  await expect(
+    page.getByText("Nie można usunąć kategorii, która zawiera produkty."),
+  ).toBeVisible();
 });
 
 test("admin lists orders and applies a supported status transition", async ({
@@ -278,7 +283,7 @@ test("validation errors are readable and logout removes private query data", asy
         detail: [
           {
             loc: ["body", "email"],
-            msg: "Nieprawidłowy e-mail",
+            msg: "value is not a valid email address",
             type: "value_error",
           },
         ],
@@ -289,7 +294,9 @@ test("validation errors are readable and logout removes private query data", asy
   await page.getByLabel("E-mail", { exact: true }).fill("user@example.com");
   await page.getByLabel("Hasło", { exact: true }).fill("password123");
   await page.getByRole("button", { name: "Zaloguj", exact: true }).click();
-  await expect(page.getByText("email: Nieprawidłowy e-mail")).toBeVisible();
+  await expect(
+    page.getByText("E-mail: podaj poprawny adres e-mail."),
+  ).toBeVisible();
   await page.unroute("**/api/v1/auth/login");
   await login(page);
   await page.getByRole("link", { name: "Profil", exact: true }).click();
